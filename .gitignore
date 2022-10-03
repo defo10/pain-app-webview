@@ -86,3 +86,9 @@ typings/
 
 # DynamoDB Local files
 .dynamodb/
+
+bundle/
+
+out/
+
+.DS_Store
