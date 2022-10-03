@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>HTML 5 Boilerplate</title>
+  <style>
+    #animations-canvas {
+      width: 100vw;
+      height: 80vh;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="animations-canvas"></canvas>
+  <div>
+    <input type="range" id="radius" name="Radius" min="1" max="300" value="20" step="1">
+    <label for="radius">radius</label>
+    <input type="range" id="closeness" name="closeness" min="0" max="1" value="0.5" step="0.01">
+    <label for="closeness">Closeness</label>
+  </div>
+</body>
+<script id="shader" type="shader" src="shader.glsl">
+void main(){
+  gl_FragColor = vec4(0.0,0.0,1.0,1.0);
+}
+</script>
+<script src="index.js"></script>
+
+</html>

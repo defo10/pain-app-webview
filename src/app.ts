@@ -8,6 +8,7 @@ import * as clipperLib from "js-angusj-clipper";
 import { metaball as metaballConnection } from "./polygon/metaball";
 import * as gl from "gl-matrix";
 import { circlePolygon, Polygon, gravitationPolygon } from "./polygon";
+import { Framebuffer } from "pixi.js";
 var lerp = require("interpolation").lerp;
 var smoothstep = require("interpolation").smoothstep;
 
@@ -23,6 +24,34 @@ const renderer = PIXI.autoDetectRenderer({
   backgroundAlpha: 1,
   backgroundColor: 0xffffff,
 });
+
+const VERT_SRC = `
+attribute vec2 aVertexPosition;
+attribute vec2 aTextureCoord;
+
+uniform mat3 projectionMatrix;
+
+varying vec2 vTextureCoord;
+
+void main(void)
+{
+    gl_Position = vec4((projectionMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
+    vTextureCoord = aTextureCoord;
+}
+`;
+
+const FRAG_SRC = `
+precision mediump float;
+
+varying vec2 vTextureCoord;//The coordinates of the current pixel
+uniform sampler2D uSampler;//The image data
+
+void main(void) {
+   gl_FragColor = texture2D(uSampler, vTextureCoord);
+   if (gl_FragColor.r > 0.0) {
+    gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+   }
+}`;
 
 const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
@@ -84,6 +113,11 @@ function metaballsPaths(
           nodesToVisit.push(connected.ref);
         }
 
+        // is false when the biggestRadiusExtendFactor we want to support (each node has at least one
+        // connection) is already set
+        const biggestIsAlreadyFullyConnected =
+          (biggestRadiusExtendOfSmallest! * (curr.radius + connected.ref.radius)) / connected.distance >=
+          pm.considerConnectedLowerBound;
         const distanceRatio = (radiusExtendFactor! * (curr.radius + connected.ref.radius)) / connected.distance;
         if (distanceRatio >= pm.considerConnectedLowerBound) {
           // connected
@@ -106,8 +140,7 @@ function metaballsPaths(
                 exponentialEaseIn
               )
             );
-        } else if (distanceRatio >= pm.gravitationForceVisibleLowerBound) {
-          debugger;
+        } else if (distanceRatio >= pm.gravitationForceVisibleLowerBound && biggestIsAlreadyFullyConnected) {
           // not connected but pulling each other
           // we save them here, because we dont know all represenatives yet
           gravitatingShapes.add(new GravitatingShape(curr, connected.ref, distanceRatio));
@@ -116,7 +149,6 @@ function metaballsPaths(
     }
   }
 
-  debugger;
   for (const gs of gravitatingShapes) {
     const ratio = smoothstep(pm.gravitationForceVisibleLowerBound, pm.considerConnectedLowerBound, gs.distanceRatio);
     const exponentialEaseIn = Math.pow(ratio, 1 / 0.2);
@@ -160,23 +192,26 @@ const animate = (time: number): void => {
     painShapes: [
       new PainShape(new PIXI.Point(120, 90), valueFromElement("radius")),
       new PainShape(new PIXI.Point(170, 120), valueFromElement("radius")),
+      new PainShape(new PIXI.Point(140, 180), valueFromElement("radius")),
     ],
     closeness: valueFromElement("closeness"),
   };
 
   clipper
     .then((clipper) => {
-      const stage = new PIXI.Container();
       const graphics = new PIXI.Graphics();
-      graphics.beginFill(0xc92626);
+      graphics.geometry.batchable = false;
+      graphics.beginFill(0xc92626, 1);
 
       for (const polygon of metaballsPaths(clipper, model)) {
         graphics.drawPolygon(polygon);
       }
 
       graphics.endFill();
-      stage.addChild(graphics);
-      renderer.render(stage);
+      const shader = new PIXI.Filter(VERT_SRC, FRAG_SRC);
+      graphics.filters = [shader];
+
+      renderer.render(graphics);
       requestAnimationFrame(animate);
     })
     .catch((err) => console.log(err));
