@@ -7,9 +7,18 @@
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>HTML 5 Boilerplate</title>
   <style>
+    html * {
+      font-family: Verdana !important;
+      font-size: small;
+    }
+
     #animations-canvas {
       width: 100vw;
-      height: 80vh;
+      height: 60vh;
+    }
+
+    div {
+      padding-bottom: 16px;
     }
   </style>
 </head>
@@ -17,10 +26,31 @@
 <body>
   <canvas id="animations-canvas"></canvas>
   <div>
-    <input type="range" id="radius" name="Radius" min="1" max="300" value="20" step="1">
-    <label for="radius">radius</label>
-    <input type="range" id="closeness" name="closeness" min="0" max="1" value="0.5" step="0.01">
-    <label for="closeness">Closeness</label>
+    <div>
+      <input type="range" id="radius" name="Radius" min="1" max="300" value="20" step="1">
+      <label for="radius">Größe Punkte</label>
+    </div>
+    <div><input type="range" id="closeness" name="closeness" min="0" max="1" value="0.5" step="0.01">
+      <label for="closeness">Geschlossenheit</label>
+    </div>
+    <form>
+      <legend>Farbverlauf zu:</legend>
+      <div>
+        <input type="radio" id="yellow" value="yellow" name="outerColor">
+        <label for="yellow">Gelb</label>
+        <input type="radio" id="orange" value="orange" name="outerColor">
+        <label for="orange">Orange</label>
+        <input type="radio" id="transparency" value="transparency" name="outerColor">
+        <label for="transparency">Transparenz (einfarbig)</label>
+      </div>
+    </form>
+    <div><input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.5" step="0.01">
+      <label for="colorShift">Color Shift Ratio (percentage where the outer colors is at 100 %</label>
+    </div>
+    <div>
+      <input type="range" id="alphaRatio" name="alphaRatio" min="0" max="1" value="0.5" step="0.01">
+      <label for="alphaRatio">Transparency fade</label>
+    </div>
   </div>
 </body>
 <script id="shader" type="shader" src="shader.glsl">

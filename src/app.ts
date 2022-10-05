@@ -1,5 +1,4 @@
 import _ from "lodash";
-import * as PIXI from "pixi.js";
 import { DistanceMatrix } from "./distance_matrix";
 import { GravitatingShape } from "./gravitating_shapes";
 import { PainShape } from "./pain_shape";
@@ -8,19 +7,19 @@ import * as clipperLib from "js-angusj-clipper";
 import { metaball as metaballConnection } from "./polygon/metaball";
 import * as gl from "gl-matrix";
 import { circlePolygon, Polygon, gravitationPolygon } from "./polygon";
-import { Framebuffer } from "pixi.js";
+import { autoDetectRenderer, Filter, filters, Framebuffer, Graphics, Point } from "pixi.js";
 var lerp = require("interpolation").lerp;
 var smoothstep = require("interpolation").smoothstep;
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
 
-const renderer = PIXI.autoDetectRenderer({
+const renderer = autoDetectRenderer({
   width: document.getElementById("animations-canvas")?.clientWidth,
   height: document.getElementById("animations-canvas")?.clientHeight,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   antialias: true,
-  resolution: 4,
+  resolution: 2,
   backgroundAlpha: 1,
   backgroundColor: 0xffffff,
 });
@@ -43,15 +42,97 @@ void main(void)
 const FRAG_SRC = `
 precision mediump float;
 
+#define TWO_PI 6.28318530718
+
 varying vec2 vTextureCoord;//The coordinates of the current pixel
 uniform sampler2D uSampler;//The image data
+uniform vec4 inputSize;
+uniform vec4 outputFrame;
+
+uniform vec3 centers[3]; // arrays of all painshapes, in form [x, y, radius]
+uniform float outerColorStart; // the ratio with respect to the radius where the outer color is 100 % visible 
+uniform float alphaFalloutStart; // the ratio with respect to the radius where the shape starts fading out
+uniform vec4 outerColor;
+
+vec3 hsl2rgb( in vec3 c )
+{
+    vec3 rgb = clamp( abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );
+
+    return c.z + c.y * (rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
+}
+
+vec3 rgb2hsl( in vec3 c ){
+  float h = 0.0;
+	float s = 0.0;
+	float l = 0.0;
+	float r = c.r;
+	float g = c.g;
+	float b = c.b;
+	float cMin = min( r, min( g, b ) );
+	float cMax = max( r, max( g, b ) );
+
+	l = ( cMax + cMin ) / 2.0;
+	if ( cMax > cMin ) {
+		float cDelta = cMax - cMin;
+        
+        //s = l < .05 ? cDelta / ( cMax + cMin ) : cDelta / ( 2.0 - ( cMax + cMin ) ); Original
+		s = l < .0 ? cDelta / ( cMax + cMin ) : cDelta / ( 2.0 - ( cMax + cMin ) );
+        
+		if ( r == cMax ) {
+			h = ( g - b ) / cDelta;
+		} else if ( g == cMax ) {
+			h = 2.0 + ( b - r ) / cDelta;
+		} else {
+			h = 4.0 + ( r - g ) / cDelta;
+		}
+
+		if ( h < 0.0) {
+			h += 6.0;
+		}
+		h = h / 6.0;
+	}
+	return vec3( h, s, l );
+}
+
 
 void main(void) {
-   gl_FragColor = texture2D(uSampler, vTextureCoord);
-   if (gl_FragColor.r > 0.0) {
-    gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
-   }
-}`;
+    gl_FragColor = texture2D(uSampler, vTextureCoord);
+    if (gl_FragColor.a == 0.0) return;
+
+    vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
+
+    vec3 minDistCenter = centers[0];
+    float minDistance = distance(minDistCenter.xy, screenCoord);
+    for (int i = 1; i < 3; i++) {
+      float distanceToCenter = distance(centers[i].xy, screenCoord);
+
+      if (minDistance < distanceToCenter) {
+        continue;
+      }
+
+      minDistance = distanceToCenter;
+      minDistCenter = centers[i];
+    }
+    float radius = minDistCenter.z;
+    // this causes the color to blur out starting from alphaFalloutStart % of radius
+    float alphaFall = smoothstep(radius, radius * alphaFalloutStart * 0.9999, minDistance);
+
+    // this shifts the gradient 
+    float distanceRatio = minDistance / radius;
+    vec4 red = vec4(1.0, 0.0, 0.0, 1.0);
+    // we multiply by 1.4 because we don't want the color to be visible at the edge too prominently
+    float pct = smoothstep(0.0, outerColorStart, distanceRatio);
+    vec4 colorGradient = mix(red, outerColor, pct);
+    
+    vec3 colorHsl = rgb2hsl(colorGradient.rgb);
+    // -> [0.0, 1.0]
+    float lightnessIncreaseRatio = smoothstep(radius * alphaFalloutStart * 0.9999, radius, minDistance);
+    // stays colorHsl.z for all under radius * alphaFallout
+    float lightness = mix(colorHsl.z, 1.0, lightnessIncreaseRatio);
+    vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
+    gl_FragColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+}
+`;
 
 const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
@@ -136,7 +217,7 @@ function metaballsPaths(
                 connected.ref.radius,
                 curr.positionAsVec2 as [number, number],
                 connected.ref.positionAsVec2 as [number, number],
-                inwardShiftRatio,
+                1.0,
                 exponentialEaseIn
               )
             );
@@ -162,7 +243,7 @@ function metaballsPaths(
           gs.to.positionAsVec2 as [number, number],
           gs.to.radius,
           ratio,
-          ratio
+          1.0
         )
       );
 
@@ -175,7 +256,7 @@ function metaballsPaths(
           gs.from.positionAsVec2 as [number, number],
           gs.from.radius,
           ratio,
-          ratio
+          1.0
         )
       );
   }
@@ -184,22 +265,44 @@ function metaballsPaths(
 }
 
 const valueFromElement = (id: string) => parseFloat((document.getElementById(id) as HTMLInputElement).value);
+const colorPicker = (colorCode: string) => {
+  switch (colorCode) {
+    case "yellow":
+      return [1.0, 1.0, 0.0, 1.0];
+    case "orange":
+      return [1.0, 0.65, 0.0, 1.0];
+    default:
+      return [1.0, 0.0, 0.0, 1.0];
+  }
+};
+const firstCheckedRatioBtn = () =>
+  (document.querySelector('input[name="outerColor"]:checked') as HTMLInputElement)?.value;
+
 // draw polygon
 const animate = (time: number): void => {
   const model = {
     considerConnectedLowerBound: 0.75,
     gravitationForceVisibleLowerBound: 0.5,
     painShapes: [
-      new PainShape(new PIXI.Point(120, 90), valueFromElement("radius")),
-      new PainShape(new PIXI.Point(170, 120), valueFromElement("radius")),
-      new PainShape(new PIXI.Point(140, 180), valueFromElement("radius")),
+      new PainShape(new Point(120, 90), valueFromElement("radius")),
+      new PainShape(new Point(170, 120), valueFromElement("radius")),
+      new PainShape(new Point(140, 180), valueFromElement("radius")),
     ],
     closeness: valueFromElement("closeness"),
   };
 
+  const uniforms = {
+    centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
+    outerColorStart: valueFromElement("colorShift"),
+    alphaFalloutStart: valueFromElement("alphaRatio"),
+    outerColor: colorPicker(firstCheckedRatioBtn()),
+  };
+  const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
+  shader.resolution = 2;
+
   clipper
     .then((clipper) => {
-      const graphics = new PIXI.Graphics();
+      const graphics = new Graphics();
       graphics.geometry.batchable = false;
       graphics.beginFill(0xc92626, 1);
 
@@ -208,7 +311,7 @@ const animate = (time: number): void => {
       }
 
       graphics.endFill();
-      const shader = new PIXI.Filter(VERT_SRC, FRAG_SRC);
+
       graphics.filters = [shader];
 
       renderer.render(graphics);

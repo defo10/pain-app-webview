@@ -1,7 +1,7 @@
-import * as PIXI from "pixi.js";
 import { Polygon } from "./polygons";
 import * as gl from "gl-matrix";
 import { angle, bounds, dist, getVector } from "./utils";
+import { Point } from "pixi.js";
 
 /** Gives path of connection between two balls, resembling metaballs.
  *
@@ -29,12 +29,12 @@ export function metaball(
   const midpointToMidpointOnP1P3 = gl.vec2.add([0.0, 0.0], midpoint, gl.vec2.scale([0.0, 0.0], midpointVector, t));
   const midpointToMidpointOnP2P4 = gl.vec2.add([0.0, 0.0], midpoint, gl.vec2.scale([0.0, 0.0], midpointVector, -t));
   const polygon: Polygon = [
-    new PIXI.Point(...p1),
-    new PIXI.Point(...midpointToMidpointOnP1P3),
-    new PIXI.Point(...p3),
-    new PIXI.Point(...p4),
-    new PIXI.Point(...midpointToMidpointOnP2P4),
-    new PIXI.Point(...p2),
+    new Point(...p1),
+    new Point(...midpointToMidpointOnP1P3),
+    new Point(...p3),
+    new Point(...p4),
+    new Point(...midpointToMidpointOnP2P4),
+    new Point(...p2),
   ];
   return polygon;
 }
