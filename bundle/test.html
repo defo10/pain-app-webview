@@ -26,6 +26,7 @@
 <body>
   <canvas id="animations-canvas"></canvas>
   <div>
+    <!-- geschlossenheut-->
     <div>
       <input type="range" id="radius" name="Radius" min="1" max="300" value="20" step="1">
       <label for="radius">Größe Punkte</label>
@@ -33,6 +34,22 @@
     <div><input type="range" id="closeness" name="closeness" min="0" max="1" value="0.5" step="0.01">
       <label for="closeness">Geschlossenheit</label>
     </div>
+    <!-- innere farbe-->
+    <form>
+      <legend>Farbe:</legend>
+      <div>
+        <input type="radio" id="yellowInner" value="yellow" name="innerColor">
+        <label for="yellowInner">Gelbtöne</label>
+        <input type="radio" id="redInner" value="red" name="innerColor" checked>
+        <label for="redInner">Rottöne</label>
+        <input type="radio" id="blueInner" value="blue" name="innerColor">
+        <label for="innerColorInner">Blautöne</label>
+      </div>
+    </form>
+    <div><input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01">
+      <label for="lightness">Ligthness</label>
+    </div>
+    <!-- äußere farbe-->
     <form>
       <legend>Farbverlauf zu:</legend>
       <div>
@@ -40,24 +57,20 @@
         <label for="yellow">Gelb</label>
         <input type="radio" id="orange" value="orange" name="outerColor">
         <label for="orange">Orange</label>
-        <input type="radio" id="transparency" value="transparency" name="outerColor">
+        <input type="radio" id="transparency" value="transparency" name="outerColor" checked>
         <label for="transparency">Transparenz (einfarbig)</label>
       </div>
     </form>
-    <div><input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.5" step="0.01">
-      <label for="colorShift">Color Shift Ratio (percentage where the outer colors is at 100 %</label>
+    <div>
+      <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
+      <label for="colorShift">Color Shift</label>
     </div>
     <div>
-      <input type="range" id="alphaRatio" name="alphaRatio" min="0" max="1" value="0.5" step="0.01">
+      <input type="range" id="alphaRatio" name="alphaRatio" min="0" max="1" value="0.9" step="0.01">
       <label for="alphaRatio">Transparency fade</label>
     </div>
   </div>
 </body>
-<script id="shader" type="shader" src="shader.glsl">
-void main(){
-  gl_FragColor = vec4(0.0,0.0,1.0,1.0);
-}
-</script>
 <script src="index.js"></script>
 
 </html>

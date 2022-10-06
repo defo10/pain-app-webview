@@ -52,8 +52,10 @@ uniform vec4 outputFrame;
 uniform vec3 centers[3]; // arrays of all painshapes, in form [x, y, radius]
 uniform float outerColorStart; // the ratio with respect to the radius where the outer color is 100 % visible 
 uniform float alphaFalloutStart; // the ratio with respect to the radius where the shape starts fading out
-uniform vec4 outerColor;
+uniform vec3 outerColorHSL;
+uniform vec3 innerColorHSL; // HSL color spectrum
 
+// src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
 {
     vec3 rgb = clamp( abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );
@@ -61,6 +63,7 @@ vec3 hsl2rgb( in vec3 c )
     return c.z + c.y * (rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
 }
 
+// src https://www.shadertoy.com/view/XljGzV
 vec3 rgb2hsl( in vec3 c ){
   float h = 0.0;
 	float s = 0.0;
@@ -114,16 +117,16 @@ void main(void) {
       minDistCenter = centers[i];
     }
     float radius = minDistCenter.z;
-    // this causes the color to blur out starting from alphaFalloutStart % of radius
-    float alphaFall = smoothstep(radius, radius * alphaFalloutStart * 0.9999, minDistance);
 
     // this shifts the gradient 
     float distanceRatio = minDistance / radius;
-    vec4 red = vec4(1.0, 0.0, 0.0, 1.0);
     // we multiply by 1.4 because we don't want the color to be visible at the edge too prominently
     float pct = smoothstep(0.0, outerColorStart, distanceRatio);
-    vec4 colorGradient = mix(red, outerColor, pct);
+    vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
+    vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
+    vec4 colorGradient = mix(innerColor, outerColor, pct);
     
+    // this causes the color to blur out starting from alphaFalloutStart % of radius
     vec3 colorHsl = rgb2hsl(colorGradient.rgb);
     // -> [0.0, 1.0]
     float lightnessIncreaseRatio = smoothstep(radius * alphaFalloutStart * 0.9999, radius, minDistance);
@@ -265,18 +268,33 @@ function metaballsPaths(
 }
 
 const valueFromElement = (id: string) => parseFloat((document.getElementById(id) as HTMLInputElement).value);
-const colorPicker = (colorCode: string) => {
+/** returns HSL! */
+const outerColorPicker = (colorCode: string): [number, number, number] | null => {
   switch (colorCode) {
     case "yellow":
-      return [1.0, 1.0, 0.0, 1.0];
+      return [55 / 360, 1.0, 0.5];
     case "orange":
-      return [1.0, 0.65, 0.0, 1.0];
+      return [38 / 360, 1.0, 0.5];
+    case "red":
+      return [0.0, 1.0, 0.5];
     default:
-      return [1.0, 0.0, 0.0, 1.0];
+      return null;
   }
 };
-const firstCheckedRatioBtn = () =>
-  (document.querySelector('input[name="outerColor"]:checked') as HTMLInputElement)?.value;
+
+/** returns HSL! */
+const innerColorPicker = (colorCode: string, lightness: number): [number, number, number] => {
+  switch (colorCode) {
+    case "yellow":
+      return [55 / 360, 1.0, lightness];
+    case "blue":
+      return [241 / 360, 1.0, lightness];
+    default: // red
+      return [0, 1.0, lightness];
+  }
+};
+const checkedRadioBtn = (name: string) =>
+  (document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement)?.value;
 
 // draw polygon
 const animate = (time: number): void => {
@@ -291,11 +309,13 @@ const animate = (time: number): void => {
     closeness: valueFromElement("closeness"),
   };
 
+  const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
   const uniforms = {
     centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
     outerColorStart: valueFromElement("colorShift"),
     alphaFalloutStart: valueFromElement("alphaRatio"),
-    outerColor: colorPicker(firstCheckedRatioBtn()),
+    outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
+    innerColorHSL: innerColor,
   };
   const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
   shader.resolution = 2;
