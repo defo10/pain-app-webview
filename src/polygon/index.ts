@@ -1,4 +1,4 @@
-import { metaball } from "./metaball";
+import { metaball, metaballsPaths } from "./metaball";
 import { circlePolygon, Polygon, gravitationPolygon } from "./polygons";
 
-export { metaball, circlePolygon, Polygon, gravitationPolygon };
+export { metaballsPaths, circlePolygon, Polygon, gravitationPolygon };
