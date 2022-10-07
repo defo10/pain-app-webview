@@ -1,10 +1,9 @@
-import "@pixi/math-extras";
 import { PainShape } from "../pain_shape";
 import _ from "lodash";
 import * as gl from "gl-matrix";
 import { bounds, lerpPoints } from "./utils";
 import { Point } from "pixi.js";
-
+import "@pixi/math-extras";
 var lerp = require("interpolation").lerp;
 var smoothstep = require("interpolation").smoothstep;
 
@@ -19,6 +18,7 @@ export const circlePolygon = (center: Point, radius: number): Polygon => {
   return circlePaths;
 };
 
+/** returns polygon overlapping circle (center1,radius1) towards other circle */
 export function gravitationPolygon(
   center1: [number, number],
   radius1: number,

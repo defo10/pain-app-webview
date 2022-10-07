@@ -2,7 +2,8 @@ import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
-import { autoDetectRenderer, Filter, Graphics, Point } from "pixi.js";
+import { autoDetectRenderer, Container, Filter, Graphics, Point } from "pixi.js";
+import "@pixi/math-extras";
 import { metaballsPaths } from "./polygon";
 
 // gl matrix uses float 32 types by default, but array is much faster.
@@ -37,17 +38,22 @@ const FRAG_SRC = `
 precision mediump float;
 
 #define TWO_PI 6.28318530718
+#define CENTERS_LEN 3
+#define SKELETONGRAPH_LEN 6
 
 varying vec2 vTextureCoord;//The coordinates of the current pixel
 uniform sampler2D uSampler;//The image data
 uniform vec4 inputSize;
 uniform vec4 outputFrame;
 
-uniform vec3 centers[3]; // arrays of all painshapes, in form [x, y, radius]
+uniform vec3 centers[CENTERS_LEN]; // arrays of all painshapes, in form [x, y, radius]
 uniform float outerColorStart; // the ratio with respect to the radius where the outer color is 100 % visible 
 uniform float alphaFalloutStart; // the ratio with respect to the radius where the shape starts fading out
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
+// both work together and form a connection [skeletonGraphFrom[i], skeletonGraphTo[i]]
+uniform vec3 skeletonGraphFrom[SKELETONGRAPH_LEN];
+uniform vec3 skeletonGraphTo[SKELETONGRAPH_LEN];
 
 // src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
@@ -91,6 +97,21 @@ vec3 rgb2hsl( in vec3 c ){
 	return vec3( h, s, l );
 }
 
+// Return [minimum distance between line segment vw and point p, ratio of where on vw the projection falls]
+// src: https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+vec2 min_distance_to_line(vec2 v, vec2 w, vec2 p) {
+  float l2 = pow(w.x - v.x, 2.0) + pow(w.y - v.y, 2.0);  // i.e. |w-v|^2 -  avoid a sqrt
+  if (l2 == 0.0) return vec2(distance(p, v), 0.0);   // v == w case
+  // Consider the line extending the segment, parameterized as v + t (w - v).
+  // We find projection of point p onto the line. 
+  // It falls where t = [(p-v) . (w-v)] / |w-v|^2
+  // We clamp t from [0,1] to handle points outside the segment vw.
+  float t = max(0.0, min(1.0, dot(p - v, w - v) / l2));
+  vec2 projection = v + t * (w - v);  // Projection falls on the segment
+  float ratio = distance(v, projection) / distance(v, w); // length ratio wrt to line segment
+  return vec2(distance(p, projection), ratio);
+}
+
 
 void main(void) {
     gl_FragColor = texture2D(uSampler, vTextureCoord);
@@ -98,9 +119,10 @@ void main(void) {
 
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
-    vec3 minDistCenter = centers[0];
-    float minDistance = distance(minDistCenter.xy, screenCoord);
-    for (int i = 1; i < 3; i++) {
+    // find closest pain shape
+    float minDistance = distance(centers[0].xy, screenCoord);
+    float radius = centers[0].z;
+    for (int i = 1; i < CENTERS_LEN; i++) {
       float distanceToCenter = distance(centers[i].xy, screenCoord);
 
       if (minDistance < distanceToCenter) {
@@ -108,9 +130,29 @@ void main(void) {
       }
 
       minDistance = distanceToCenter;
-      minDistCenter = centers[i];
+      radius = centers[i].z;
     }
-    float radius = minDistCenter.z;
+
+    // find closest distance to all skeleton graphs
+    for (int i = 0; i < SKELETONGRAPH_LEN; i++) {
+      vec2 from = skeletonGraphFrom[i].xy;
+      float radiusFrom = skeletonGraphFrom[i].z;
+
+      vec2 to = skeletonGraphTo[i].xy;
+      float radiusTo = skeletonGraphTo[i].z;
+
+      vec2 shortestDistance = min_distance_to_line(from, to, screenCoord);
+      float dist = shortestDistance.x;
+      float t = shortestDistance.y;
+
+      if (minDistance < dist) {
+        continue;
+      }
+
+      minDistance = dist;
+      radius = mix(radiusFrom, radiusTo, t);
+    }
+
 
     // this shifts the gradient 
     float distanceRatio = minDistance / radius;
@@ -177,32 +219,57 @@ const animate = (time: number): void => {
     closeness: valueFromElement("closeness"),
   };
 
-  const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
-  const uniforms = {
-    centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
-    outerColorStart: valueFromElement("colorShift"),
-    alphaFalloutStart: valueFromElement("alphaRatio"),
-    outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
-    innerColorHSL: innerColor,
-  };
-  const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
-  shader.resolution = 2;
-
   clipper
     .then((clipper) => {
+      const { paths, skeletonGraph } = metaballsPaths(clipper, model);
+
+      const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
+      const uniforms = {
+        centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
+        outerColorStart: valueFromElement("colorShift"),
+        alphaFalloutStart: valueFromElement("alphaRatio"),
+        outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
+        innerColorHSL: innerColor,
+        skeletonGraphFrom: skeletonGraph.flatMap((connection) => [
+          connection.from.position.x,
+          connection.from.position.y,
+          connection.from.radius,
+        ]),
+        skeletonGraphTo: skeletonGraph.flatMap((connection) => [
+          connection.to.position.x,
+          connection.to.position.y,
+          connection.to.radius,
+        ]),
+      };
+      const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
+      shader.resolution = 2;
+
       const graphics = new Graphics();
       graphics.geometry.batchable = false;
-      graphics.beginFill(0xc92626, 1);
+      graphics.beginFill(0x000000);
 
-      for (const polygon of metaballsPaths(clipper, model)) {
-        graphics.drawPolygon(polygon);
+      for (const [_, polygons] of paths.entries()) {
+        for (const p of polygons) {
+          graphics.drawPolygon(p);
+        }
       }
 
       graphics.endFill();
-
       graphics.filters = [shader];
 
-      renderer.render(graphics);
+      const debug = new Graphics();
+      for (const conn of skeletonGraph) {
+        debug
+          .lineStyle({ color: 0x000000, alpha: 1.0, width: 3 })
+          .moveTo(conn.from.position.x, conn.from.position.y)
+          .lineTo(conn.to.position.x, conn.to.position.y);
+      }
+      const container = new Container();
+      container.addChild(graphics);
+      container.addChild(debug);
+
+      renderer.render(container);
+
       requestAnimationFrame(animate);
     })
     .catch((err) => console.log(err));

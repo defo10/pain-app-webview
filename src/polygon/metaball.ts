@@ -2,15 +2,22 @@ import * as gl from "gl-matrix";
 import _ from "lodash";
 import { angle, bounds, dist, getVector } from "./utils";
 import { DistanceMatrix } from "../distance_matrix";
-import { GravitatingShape } from "../gravitating_shapes";
+import { Connection } from "../gravitating_shapes";
 import { PainShape } from "../pain_shape";
 import Queue from "denque";
 import * as clipperLib from "js-angusj-clipper";
 import { metaball as metaballConnection } from "./metaball";
 import { circlePolygon, Polygon, gravitationPolygon } from "../polygon";
 import { autoDetectRenderer, Filter, filters, Framebuffer, Graphics, Point } from "pixi.js";
+import "@pixi/math-extras";
+
 var lerp = require("interpolation").lerp;
 var smoothstep = require("interpolation").smoothstep;
+
+type SkeletonNode = {
+  position: Point;
+  radius: number;
+};
 
 export function metaballsPaths(
   clipper: clipperLib.ClipperLibWrapper,
@@ -20,7 +27,7 @@ export function metaballsPaths(
     painShapes: PainShape[];
     closeness: number;
   }
-): Polygon[] {
+): { paths: Map<PainShape, Polygon[]>; skeletonGraph: Connection<SkeletonNode>[] } {
   const distanceMatrix = new DistanceMatrix<PainShape>(pm.painShapes, PainShape.dist);
   // we want to find to find all radiusExtendFactors for all distances, thus
   // "dist = radiusExtendFactor * (a.radius + b.radius)" => "radiusExtendFactor = dist / (a.radius + b.radius)"
@@ -42,8 +49,12 @@ export function metaballsPaths(
 
   const representativeMap = new Map<PainShape, PainShape>();
   const pathsMap = new Map<PainShape, Polygon[]>();
-  const gravitatingShapes = new Set<GravitatingShape>();
+  const gravitatingShapes = new Set<Connection<PainShape>>();
   const visited = new Set<PainShape>();
+
+  // this consists of lines that form a skeleton graph which is used in the shader
+  // to calculate gradients, which has form [x1, y1, radius1, x2, y2, radius2]
+  const skeletonGraph: Connection<SkeletonNode>[] = [];
 
   for (const node of pm.painShapes) {
     if (visited.has(node)) continue;
@@ -95,10 +106,16 @@ export function metaballsPaths(
                 exponentialEaseIn
               )
             );
+          skeletonGraph.push(
+            new Connection<SkeletonNode>(
+              { position: curr.position, radius: curr.radius },
+              { position: connected.ref.position, radius: connected.ref.radius }
+            )
+          );
         } else if (distanceRatio >= pm.gravitationForceVisibleLowerBound && biggestIsAlreadyFullyConnected) {
           // not connected but pulling each other
           // we save them here, because we dont know all represenatives yet
-          gravitatingShapes.add(new GravitatingShape(curr, connected.ref, distanceRatio));
+          gravitatingShapes.add(new Connection(curr, connected.ref, distanceRatio));
         }
       }
     }
@@ -108,34 +125,60 @@ export function metaballsPaths(
     const ratio = smoothstep(pm.gravitationForceVisibleLowerBound, pm.considerConnectedLowerBound, gs.distanceRatio);
     const exponentialEaseIn = Math.pow(ratio, 1 / 0.2);
 
-    pathsMap
-      .get(representativeMap.get(gs.from)!)
-      ?.push(
-        gravitationPolygon(
-          gs.from.positionAsVec2 as [number, number],
-          gs.from.radius,
-          gs.to.positionAsVec2 as [number, number],
-          gs.to.radius,
-          ratio,
-          1.0
-        )
-      );
+    const firstPullPolygon = gravitationPolygon(
+      gs.from.positionAsVec2 as [number, number],
+      gs.from.radius,
+      gs.to.positionAsVec2 as [number, number],
+      gs.to.radius,
+      ratio,
+      1.0
+    );
+    pathsMap.get(representativeMap.get(gs.from)!)?.push(firstPullPolygon);
+    skeletonGraph.push(
+      new Connection<SkeletonNode>(
+        { position: gs.from.position, radius: gs.from.radius },
+        {
+          position: new Point(...skeletonConnectionOfGravitationPull(gs.from, firstPullPolygon)),
+          radius: gs.from.radius,
+        }
+      )
+    );
 
-    pathsMap
-      .get(representativeMap.get(gs.to)!)
-      ?.push(
-        gravitationPolygon(
-          gs.to.positionAsVec2 as [number, number],
-          gs.to.radius,
-          gs.from.positionAsVec2 as [number, number],
-          gs.from.radius,
-          ratio,
-          1.0
-        )
-      );
+    const secondPullPolygon = gravitationPolygon(
+      gs.to.positionAsVec2 as [number, number],
+      gs.to.radius,
+      gs.from.positionAsVec2 as [number, number],
+      gs.from.radius,
+      ratio,
+      1.0
+    );
+    pathsMap.get(representativeMap.get(gs.to)!)?.push(secondPullPolygon);
+    skeletonGraph.push(
+      new Connection<SkeletonNode>(
+        { position: gs.to.position, radius: gs.to.radius },
+        { position: new Point(...skeletonConnectionOfGravitationPull(gs.to, secondPullPolygon)), radius: gs.to.radius }
+      )
+    );
   }
 
-  return [...pathsMap.values()].flat();
+  return { paths: pathsMap, skeletonGraph };
+}
+
+/** returns something like the center of the pull area, which is used to offset the
+ * gradient spread slightly.
+ */
+function skeletonConnectionOfGravitationPull(circle: PainShape, pull: Polygon): gl.ReadonlyVec2 {
+  // assuming that Polygon shape is [left, front, right]
+  const frontPull = pull[1];
+  const Circle2FrontPullVector = gl.vec2.sub([0, 0], [frontPull.x, frontPull.y], circle.positionAsVec2);
+  const uCircle2FrontPullVector = gl.vec2.normalize([0, 0], Circle2FrontPullVector);
+  const Circle2FrontPullMinusRadiusVector = gl.vec2.sub(
+    [0, 0],
+    Circle2FrontPullVector,
+    gl.vec2.scale([0, 0], uCircle2FrontPullVector, circle.radius)
+  );
+  const point = gl.vec2.add([0, 0], circle.positionAsVec2, Circle2FrontPullMinusRadiusVector);
+  return point;
 }
 
 /** Gives path of connection between two balls, resembling metaballs.
