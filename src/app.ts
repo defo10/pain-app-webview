@@ -2,12 +2,14 @@ import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
-import { autoDetectRenderer, Container, Filter, Graphics, Point } from "pixi.js";
+import { autoDetectRenderer, Container, ENV, Filter, Graphics, Point, settings } from "pixi.js";
 import "@pixi/math-extras";
 import { metaballsPaths } from "./polygon";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
+
+settings.PREFER_ENV = ENV.WEBGL2;
 
 const renderer = autoDetectRenderer({
   width: document.getElementById("animations-canvas")?.clientWidth,
@@ -19,23 +21,41 @@ const renderer = autoDetectRenderer({
   backgroundColor: 0xffffff,
 });
 
-const VERT_SRC = `
-attribute vec2 aVertexPosition;
-attribute vec2 aTextureCoord;
+const VERT_SRC = `#version 300 es
+
+precision highp float;
+
+in vec2 aVertexPosition;
 
 uniform mat3 projectionMatrix;
 
-varying vec2 vTextureCoord;
+out vec2 vTextureCoord;
+
+uniform vec4 inputSize;
+uniform vec4 outputFrame;
+
+vec4 filterVertexPosition( void )
+{
+    vec2 position = aVertexPosition * max(outputFrame.zw, vec2(0.)) + outputFrame.xy;
+
+    return vec4((projectionMatrix * vec3(position, 1.0)).xy, 0.0, 1.0);
+}
+
+vec2 filterTextureCoord( void )
+{
+    return aVertexPosition * (outputFrame.zw * inputSize.zw);
+}
 
 void main(void)
 {
-    gl_Position = vec4((projectionMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
-    vTextureCoord = aTextureCoord;
+    gl_Position = filterVertexPosition();
+    vTextureCoord = filterTextureCoord();
 }
 `;
 
-const FRAG_SRC = (polygons: number[][]) => `
-precision mediump float;
+const FRAG_SRC = (polygons: number[][]) => `#version 300 es
+
+precision highp float;
 
 #define TWO_PI 6.28318530718
 #define CENTERS_LEN 3
@@ -44,7 +64,9 @@ precision mediump float;
 #define PATHS_LEN ${polygons.reduce((sum, p) => sum + p.length, 0)}
 #define RANGES_LEN ${polygons.length}
 
-varying vec2 vTextureCoord;//The coordinates of the current pixel
+out vec4 outputColor;
+
+in vec2 vTextureCoord;//The coordinates of the current pixel
 uniform sampler2D uSampler;//The image data
 uniform vec4 inputSize;
 uniform vec4 outputFrame;
@@ -59,7 +81,7 @@ uniform vec3 skeletonGraphFrom[SKELETONGRAPH_LEN];
 uniform vec3 skeletonGraphTo[SKELETONGRAPH_LEN];
 
 uniform vec2 paths[PATHS_LEN];
-uniform vec2 ranges[RANGES_LEN];
+uniform ivec2 ranges[RANGES_LEN];
 
 
 // src https://www.shadertoy.com/view/XljGzV
@@ -121,62 +143,42 @@ vec2 min_distance_to_line(vec2 v, vec2 w, vec2 p) {
 
 
 void main(void) {
-    gl_FragColor = texture2D(uSampler, vTextureCoord);
-    if (gl_FragColor.a == 0.0) return;
+    outputColor = texture(uSampler, vTextureCoord);
+    if (outputColor.a == 0.0) return;
 
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
-    // find closest pain shape
-    float minDistance = distance(centers[0].xy, screenCoord);
-    float radius = centers[0].z;
-    for (int i = 1; i < CENTERS_LEN; i++) {
-      float distanceToCenter = distance(centers[i].xy, screenCoord);
+    float dist = 1000000.0;
+    for (int n = 0; n < RANGES_LEN - 1; n++) {
+      ivec2 range = ranges[n];
 
-      if (minDistance < distanceToCenter) {
-        continue;
+      for (int i = range.x; i < range.y; i++) {
+        vec2 from = paths[i];
+        vec2 to = paths[i + 1];
+        vec2 minDist = min_distance_to_line(from, to, screenCoord);
+        dist = min(dist, minDist.x);
       }
 
-      minDistance = distanceToCenter;
-      radius = centers[i].z;
+      vec2 last = paths[range.y - 1];
+      vec2 first = paths[range.x];
+      vec2 minDist = min_distance_to_line(last, first, screenCoord);
+      dist = min(dist, minDist.x);
     }
 
-    // find closest distance to all skeleton graphs
-    for (int i = 0; i < SKELETONGRAPH_LEN; i++) {
-      vec2 from = skeletonGraphFrom[i].xy;
-      float radiusFrom = skeletonGraphFrom[i].z;
-
-      vec2 to = skeletonGraphTo[i].xy;
-      float radiusTo = skeletonGraphTo[i].z;
-
-      vec2 shortestDistance = min_distance_to_line(from, to, screenCoord);
-      float dist = shortestDistance.x;
-      float t = shortestDistance.y;
-
-      if (minDistance < dist) {
-        continue;
-      }
-
-      minDistance = dist;
-      radius = mix(radiusFrom, radiusTo, t);
-    }
-
-
-    // this shifts the gradient 
-    float distanceRatio = minDistance / radius;
-    // we multiply by 1.4 because we don't want the color to be visible at the edge too prominently
-    float pct = smoothstep(0.0, outerColorStart, distanceRatio);
+    float pct = smoothstep(0.0, 100.0, dist);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(innerColor, outerColor, pct);
     
+    outputColor = vec4(1.0, 0.0, 0.0, pct);
     // this causes the color to blur out starting from alphaFalloutStart % of radius
-    vec3 colorHsl = rgb2hsl(colorGradient.rgb);
+    //vec3 colorHsl = rgb2hsl(colorGradient.rgb);
     // -> [0.0, 1.0]
-    float lightnessIncreaseRatio = smoothstep(radius * alphaFalloutStart * 0.9999, radius, minDistance);
+    //float lightnessIncreaseRatio = smoothstep(radius * alphaFalloutStart * 0.9999, radius, minDistance);
     // stays colorHsl.z for all under radius * alphaFallout
-    float lightness = mix(colorHsl.z, 1.0, lightnessIncreaseRatio);
-    vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
-    gl_FragColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    //float lightness = mix(colorHsl.z, 1.0, lightnessIncreaseRatio);
+    //vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
+    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
 }
 `;
 
@@ -291,8 +293,8 @@ const animate = (time: number): void => {
           connection.to.position.y,
           connection.to.radius,
         ]),
-        polygons: polygonsFlattened.flat(),
-        ranges: getRanges(polygonsFlattened).flat(),
+        polygons: new Float32Array(polygonsFlattened.flat()),
+        ranges: new Uint32Array(getRanges(polygonsFlattened).flat()),
       };
       debugger;
       const shader = new Filter(VERT_SRC, FRAG_SRC(polygonsFlattened), uniforms);
