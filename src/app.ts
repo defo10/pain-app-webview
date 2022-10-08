@@ -34,12 +34,15 @@ void main(void)
 }
 `;
 
-const FRAG_SRC = `
+const FRAG_SRC = (polygons: number[][]) => `
 precision mediump float;
 
 #define TWO_PI 6.28318530718
 #define CENTERS_LEN 3
 #define SKELETONGRAPH_LEN 6
+
+#define PATHS_LEN ${polygons.reduce((sum, p) => sum + p.length, 0)}
+#define RANGES_LEN ${polygons.length}
 
 varying vec2 vTextureCoord;//The coordinates of the current pixel
 uniform sampler2D uSampler;//The image data
@@ -54,6 +57,10 @@ uniform vec3 innerColorHSL; // HSL color spectrum
 // both work together and form a connection [skeletonGraphFrom[i], skeletonGraphTo[i]]
 uniform vec3 skeletonGraphFrom[SKELETONGRAPH_LEN];
 uniform vec3 skeletonGraphTo[SKELETONGRAPH_LEN];
+
+uniform vec2 paths[PATHS_LEN];
+uniform vec2 ranges[RANGES_LEN];
+
 
 // src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
@@ -206,6 +213,20 @@ const innerColorPicker = (colorCode: string, lightness: number): [number, number
 const checkedRadioBtn = (name: string) =>
   (document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement)?.value;
 
+const getRanges = (arr: number[][]): number[] => {
+  const ranges: number[] = [];
+  for (const sub of arr) {
+    if (ranges.length == 0) {
+      ranges.push(0, Math.floor(sub.length / 2));
+      continue;
+    }
+    const last = ranges[ranges.length - 1];
+    // order of execution in math formula matters because last was already divided by!
+    ranges.push(last, Math.floor(last + sub.length / 2));
+  }
+  return ranges;
+};
+
 // draw polygon
 const animate = (time: number): void => {
   const model = {
@@ -223,7 +244,37 @@ const animate = (time: number): void => {
     .then((clipper) => {
       const { paths, skeletonGraph } = metaballsPaths(clipper, model);
 
+      const graphics = new Graphics();
+      graphics.geometry.batchable = false;
+      graphics.beginFill(0x000000);
+
+      const scalingFactor = 10e4;
+      const polygonsUnionedUnscaled = clipper.clipToPaths({
+        clipType: clipperLib.ClipType.Union,
+        subjectFillType: clipperLib.PolyFillType.NonZero,
+        subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
+          polygons.map((p) => ({
+            closed: true,
+            data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
+          }))
+        ),
+      });
+      const polygons = polygonsUnionedUnscaled?.map((p) =>
+        p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor])
+      )!;
+      for (const path of polygons!) {
+        graphics.drawPolygon(
+          path.map(([x, y]) => ({
+            x: x,
+            y: y,
+          }))
+        );
+      }
+
+      graphics.endFill();
+
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
+      const polygonsFlattened = polygons.map((path) => path.flat());
       const uniforms = {
         centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
         outerColorStart: valueFromElement("colorShift"),
@@ -240,21 +291,13 @@ const animate = (time: number): void => {
           connection.to.position.y,
           connection.to.radius,
         ]),
+        polygons: polygonsFlattened.flat(),
+        ranges: getRanges(polygonsFlattened).flat(),
       };
-      const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
+      debugger;
+      const shader = new Filter(VERT_SRC, FRAG_SRC(polygonsFlattened), uniforms);
       shader.resolution = 2;
 
-      const graphics = new Graphics();
-      graphics.geometry.batchable = false;
-      graphics.beginFill(0x000000);
-
-      for (const [_, polygons] of paths.entries()) {
-        for (const p of polygons) {
-          graphics.drawPolygon(p);
-        }
-      }
-
-      graphics.endFill();
       graphics.filters = [shader];
 
       const debug = new Graphics();
