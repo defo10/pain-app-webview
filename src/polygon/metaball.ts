@@ -1,6 +1,6 @@
 import * as gl from "gl-matrix";
 import _ from "lodash";
-import { angle, bounds, dist, getVector } from "./utils";
+import { angle, bounds, clamp, dist, getVector } from "./utils";
 import { DistanceMatrix } from "../distance_matrix";
 import { Connection } from "../gravitating_shapes";
 import { PainShape } from "../pain_shape";
@@ -50,43 +50,44 @@ export function metaballsPaths(
   const representativeMap = new Map<PainShape, PainShape>();
   const pathsMap = new Map<PainShape, Polygon[]>();
   const gravitatingShapes = new Set<Connection<PainShape>>();
-  const visited = new Set<PainShape>();
+  const hasVisited = (node: PainShape) => representativeMap.has(node);
 
   // this consists of lines that form a skeleton graph which is used in the shader
   // to calculate gradients, which has form [x1, y1, radius1, x2, y2, radius2]
   const skeletonGraph: Connection<SkeletonNode>[] = [];
 
   for (const node of pm.painShapes) {
-    if (visited.has(node)) continue;
+    if (hasVisited(node)) continue;
 
     const nodesToVisit = new Queue<PainShape>();
     nodesToVisit.push(node);
     while (!nodesToVisit.isEmpty()) {
       const curr = nodesToVisit.shift()!;
-      visited.add(curr);
 
       if (!representativeMap.has(curr)) representativeMap.set(curr, node);
 
       const circle = circlePolygon(curr.position, curr.radius);
-      if (pathsMap.get(representativeMap.get(curr)!)) {
+      if (pathsMap.has(representativeMap.get(curr)!)) {
         pathsMap.get(representativeMap.get(curr)!)!.push(circle);
       } else {
         pathsMap.set(representativeMap.get(curr)!, [circle]);
       }
 
       for (const connected of distanceMatrix.knn(curr)) {
-        if (!visited.has(connected.ref)) {
-          nodesToVisit.push(connected.ref);
-        }
-
         // is false when the biggestRadiusExtendFactor we want to support (each node has at least one
         // connection) is already set
         const biggestIsAlreadyFullyConnected =
           (biggestRadiusExtendOfSmallest! * (curr.radius + connected.ref.radius)) / connected.distance >=
           pm.considerConnectedLowerBound;
         const distanceRatio = (radiusExtendFactor! * (curr.radius + connected.ref.radius)) / connected.distance;
+
         if (distanceRatio >= pm.considerConnectedLowerBound) {
           // connected
+          if (!hasVisited(connected.ref)) {
+            representativeMap.set(connected.ref, representativeMap.get(curr)!);
+            nodesToVisit.push(connected.ref);
+          }
+
           // [pm.considerConnectedLowerBound, 1.0] => [0, 1]
           const ratio = smoothstep(pm.considerConnectedLowerBound, 1.0, distanceRatio);
           // [0, 1] -> [0, 1]
@@ -116,13 +117,14 @@ export function metaballsPaths(
           // not connected but pulling each other
           // we save them here, because we dont know all represenatives yet
           gravitatingShapes.add(new Connection(curr, connected.ref, distanceRatio));
-        }
+        } // else not connected
       }
     }
   }
 
   for (const gs of gravitatingShapes) {
     const ratio = smoothstep(pm.gravitationForceVisibleLowerBound, pm.considerConnectedLowerBound, gs.distanceRatio);
+
     const exponentialEaseIn = Math.pow(ratio, 1 / 0.2);
 
     const firstPullPolygon = gravitationPolygon(
@@ -131,7 +133,7 @@ export function metaballsPaths(
       gs.to.positionAsVec2 as [number, number],
       gs.to.radius,
       ratio,
-      1.0
+      0.3
     );
     pathsMap.get(representativeMap.get(gs.from)!)?.push(firstPullPolygon);
     skeletonGraph.push(
@@ -141,22 +143,6 @@ export function metaballsPaths(
           position: new Point(...skeletonConnectionOfGravitationPull(gs.from, firstPullPolygon)),
           radius: gs.from.radius,
         }
-      )
-    );
-
-    const secondPullPolygon = gravitationPolygon(
-      gs.to.positionAsVec2 as [number, number],
-      gs.to.radius,
-      gs.from.positionAsVec2 as [number, number],
-      gs.from.radius,
-      ratio,
-      1.0
-    );
-    pathsMap.get(representativeMap.get(gs.to)!)?.push(secondPullPolygon);
-    skeletonGraph.push(
-      new Connection<SkeletonNode>(
-        { position: gs.to.position, radius: gs.to.radius },
-        { position: new Point(...skeletonConnectionOfGravitationPull(gs.to, secondPullPolygon)), radius: gs.to.radius }
       )
     );
   }
@@ -204,8 +190,16 @@ export function metaball(
   const P1P3 = gl.vec2.sub([0.0, 0.0], p3, p1);
   const midpointOnP1P3 = gl.vec2.add([0.0, 0.0], p1, gl.vec2.scale([0.0, 0.0], center1ToCenter2, 0.5));
   const midpointVector = gl.vec2.sub([0.0, 0.0], midpointOnP1P3, midpoint);
-  const midpointToMidpointOnP1P3 = gl.vec2.add([0.0, 0.0], midpoint, gl.vec2.scale([0.0, 0.0], midpointVector, t));
-  const midpointToMidpointOnP2P4 = gl.vec2.add([0.0, 0.0], midpoint, gl.vec2.scale([0.0, 0.0], midpointVector, -t));
+  const midpointToMidpointOnP1P3 = gl.vec2.add(
+    [0.0, 0.0],
+    midpoint,
+    gl.vec2.scale([0.0, 0.0], midpointVector, clamp(t, 0.05, 1.0))
+  );
+  const midpointToMidpointOnP2P4 = gl.vec2.add(
+    [0.0, 0.0],
+    midpoint,
+    gl.vec2.scale([0.0, 0.0], midpointVector, -clamp(t, 0.05, 1.0))
+  );
   const polygon: Polygon = [
     new Point(...p1),
     new Point(...midpointToMidpointOnP1P3),
