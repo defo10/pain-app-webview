@@ -75,3 +75,7 @@ export function bounds(
 
   return { p1, p2, p3, p4 };
 }
+
+export function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}

@@ -12,7 +12,7 @@ export type Polygon = Point[];
 /** returns polygon of a circle around @param center with @param radius */
 export const circlePolygon = (center: Point, radius: number): Polygon => {
   const circlePaths = [];
-  for (let i = 0; i < 2 * Math.PI; i = i + 0.1) {
+  for (let i = 0; i < 2 * Math.PI; i = i + 0.15) {
     circlePaths.push(new Point(center.x + Math.cos(i) * radius, center.y + Math.sin(i) * radius));
   }
   return circlePaths;
@@ -35,5 +35,5 @@ export function gravitationPolygon(
   const reachPoint = gl.vec2.scale([0, 0], center1ToMidpoint, radius1 / gl.vec2.length(center1ToMidpoint));
   const outlinePoint = gl.vec2.add([0, 0], center1, reachPoint);
   const gravitationPoint = lerpPoints(outlinePoint as [number, number], midpoint, connectionStrength);
-  return [new Point(...p1), new Point(...gravitationPoint), new Point(...p2)];
+  return [new Point(...p2), new Point(...gravitationPoint), new Point(...p1)];
 }
