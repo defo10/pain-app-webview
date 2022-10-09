@@ -21,6 +21,18 @@ export const circlePolygon = (center: Point, radius: number): Polygon => {
   return circlePaths;
 };
 
+export function calcMidpoint(
+  center1: readonly [number, number],
+  radius1: number,
+  center2: readonly [number, number],
+  radius2: number
+): gl.vec2 {
+  const C1C2 = gl.vec2.sub([0.0, 0.0], center2, center1);
+  const midpointRatio = radius1 / (radius1 + radius2);
+  const midpoint = gl.vec2.add([0.0, 0.0], center1, gl.vec2.scale([0.0, 0.0], C1C2, midpointRatio));
+  return midpoint;
+}
+
 /** returns polygon overlapping circle (center1,radius1) towards other circle */
 export function gravitationPolygon(
   center1: [number, number],
@@ -30,14 +42,15 @@ export function gravitationPolygon(
   connectionStrength = 1.0,
   inwardShift = 0.5
 ): Polygon {
-  const midpoint = lerpPoints(center1, center2, 0.5);
+  const mid = calcMidpoint(center1, radius1, center2, radius2);
+
   const { p1, p2 } = bounds(radius1, radius2, center1, center2, inwardShift);
 
-  const center1ToMidpoint = gl.vec2.sub([0, 0], midpoint, center1);
+  const center1ToMidpoint = gl.vec2.sub([0, 0], mid, center1);
   // scaling factor which, applied to center1ToMidpoint, translates center1 onto its outline
   const reachPoint = gl.vec2.scale([0, 0], center1ToMidpoint, radius1 / gl.vec2.length(center1ToMidpoint));
   const outlinePoint = gl.vec2.add([0, 0], center1, reachPoint);
-  const gravitationPoint = lerpPoints(outlinePoint as [number, number], midpoint, connectionStrength);
+  const gravitationPoint = lerpPoints(outlinePoint as [number, number], mid as [number, number], connectionStrength);
 
   const curve = new CurveInterpolator([p2, gravitationPoint as number[], p1], { tension: 0.0 });
 

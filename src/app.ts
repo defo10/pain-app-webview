@@ -11,12 +11,14 @@ gl.glMatrix.setMatrixArrayType(Array);
 
 settings.PREFER_ENV = ENV.WEBGL2;
 
+const RESOLUTION = 2;
+
 const renderer = autoDetectRenderer({
   width: document.getElementById("animations-canvas")?.clientWidth,
   height: document.getElementById("animations-canvas")?.clientHeight,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   antialias: true,
-  resolution: 2,
+  resolution: RESOLUTION,
   backgroundAlpha: 1,
   backgroundColor: 0xffffff,
 });
@@ -222,22 +224,27 @@ const getRanges = (arr: number[][]): number[] => {
   return ranges;
 };
 
+const model = {
+  considerConnectedLowerBound: 0.75,
+  gravitationForceVisibleLowerBound: 0.5,
+  painShapes: [
+    new PainShape(new Point(120, 90), valueFromElement("radius1")),
+    new PainShape(new Point(170, 120), valueFromElement("radius2")),
+    new PainShape(new Point(140, 200), valueFromElement("radius3")),
+  ],
+  closeness: valueFromElement("closeness"),
+};
+
 // draw polygon
 const animate = (time: number): void => {
-  const model = {
-    considerConnectedLowerBound: 0.75,
-    gravitationForceVisibleLowerBound: 0.5,
-    painShapes: [
-      new PainShape(new Point(120, 90), valueFromElement("radius")),
-      new PainShape(new Point(170, 120), valueFromElement("radius")),
-      new PainShape(new Point(140, 180), valueFromElement("radius")),
-    ],
-    closeness: valueFromElement("closeness"),
-  };
+  model.painShapes.forEach((p, i) => {
+    p.radius = valueFromElement(`radius${i + 1}`);
+  });
+  model.closeness = valueFromElement("closeness");
 
   clipper
     .then((clipper) => {
-      const { paths, skeletonGraph } = metaballsPaths(clipper, model);
+      const { paths } = metaballsPaths(clipper, model);
 
       const graphics = new Graphics();
       graphics.geometry.batchable = false;
@@ -280,13 +287,37 @@ const animate = (time: number): void => {
         paths: new Float32Array(polygonsFlattened.flat()),
         ranges: new Int32Array(getRanges(polygonsFlattened).flat()),
       };
-      debugger;
       const shader = new Filter(VERT_SRC, FRAG_SRC(polygonsFlattened), uniforms);
-      shader.resolution = 2;
+      shader.resolution = RESOLUTION;
 
       graphics.filters = [shader];
 
       const container = new Container();
+
+      for (const painShape of model.painShapes) {
+        const circle = new Graphics();
+        circle.beginFill(0xffffff, 0.1);
+        circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
+        circle.endFill();
+        circle.interactive = true;
+        circle.buttonMode = true;
+        circle.on("pointerdown", (e) => {
+          painShape.dragging = true;
+        });
+        circle.on("pointermove", (e) => {
+          if (painShape.dragging ?? false) {
+            painShape.position.x = e.data.global.x;
+            painShape.position.y = e.data.global.y;
+          }
+        });
+        circle.on("pointerup", (e) => {
+          painShape.position.x = e.data.global.x;
+          painShape.position.y = e.data.global.y;
+          painShape.dragging = false;
+        });
+        container.addChild(circle);
+      }
+
       container.addChild(graphics);
       renderer.render(container);
 

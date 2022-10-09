@@ -12,7 +12,7 @@ import { autoDetectRenderer, Filter, filters, Framebuffer, Graphics, Point } fro
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
 import { Circle, Line, intersections, Point as EuclidPoint, GeoShape } from "@mathigon/euclid";
-import { overlapClosing } from "./polygons";
+import { calcMidpoint, overlapClosing } from "./polygons";
 
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
@@ -77,6 +77,12 @@ export function metaballsPaths(
       }
 
       for (const connected of distanceMatrix.knn(curr)) {
+        if (
+          insideCircle(curr.positionAsVec2, curr.radius, connected.ref.positionAsVec2) ||
+          insideCircle(connected.ref.positionAsVec2, connected.ref.radius, curr.positionAsVec2)
+        )
+          continue;
+
         // is false when the biggestRadiusExtendFactor we want to support (each node has at least one
         // connection) is already set
         const biggestIsAlreadyFullyConnected =
@@ -99,24 +105,9 @@ export function metaballsPaths(
           // [0, 1] -> [0.5, 1.0]
           const inwardShiftRatio = lerp(0.5, 1.0, ratio);
 
-          // if both include each others center, there's no point in darwin
-          if (
-            insideCircle(
-              curr.positionAsVec2 as readonly [number, number],
-              curr.radius,
-              connected.ref.positionAsVec2 as [number, number]
-            ) ||
-            insideCircle(
-              connected.ref.positionAsVec2 as readonly [number, number],
-              connected.ref.radius,
-              curr.positionAsVec2 as [number, number]
-            )
-          )
-            continue;
-
           // TODO consider case when radii are overlapping, maybe redo metaballpath function?
           if (connected.distance <= curr.radius + connected.ref.radius) {
-            continue;
+            // continue;
           }
           pathsMap
             .get(representativeMap.get(curr)!)!
@@ -127,7 +118,7 @@ export function metaballsPaths(
                 curr.positionAsVec2 as [number, number],
                 connected.ref.positionAsVec2 as [number, number],
                 inwardShiftRatio,
-                exponentialEaseIn
+                ratio
               )
             );
         } else if (distanceRatio >= pm.gravitationForceVisibleLowerBound && biggestIsAlreadyFullyConnected) {
@@ -179,25 +170,29 @@ export function metaball(
   t = 1.0
 ): Polygon {
   const { p1, p2, p3, p4 } = bounds(radius1, radius2, center1, center2, v);
-
-  // midpoint
-  const center1ToCenter2 = gl.vec2.sub([0.0, 0.0], center2, center1);
-  const midpoint = gl.vec2.add([0.0, 0.0], center1, gl.vec2.scale([0.0, 0.0], center1ToCenter2, 0.5));
-  const midpointOnP1P3 = gl.vec2.add([0.0, 0.0], p1, gl.vec2.scale([0.0, 0.0], center1ToCenter2, 0.5));
-  const midpointOnP2P4 = gl.vec2.add([0.0, 0.0], p2, gl.vec2.scale([0.0, 0.0], center1ToCenter2, 0.5));
-  const midpointVector = gl.vec2.sub([0.0, 0.0], midpointOnP1P3, midpoint);
-
   const lowerBound = 0.15;
 
+  // midpoint
+  const midpointRatio = radius1 / (radius1 + radius2);
+  const C1C2 = gl.vec2.sub([0.0, 0.0], center2, center1);
+  const midpoint = calcMidpoint(center1, radius1, center2, radius2);
+
+  const P1P3 = gl.vec2.sub([0.0, 0.0], p3, p1);
+  const midpointOnP1P3 = gl.vec2.add([0.0, 0.0], p1, gl.vec2.scale([0.0, 0.0], P1P3, midpointRatio));
+  const midpointVectorP1P3 = gl.vec2.sub([0.0, 0.0], midpointOnP1P3, midpoint);
   const midpointToMidpointOnP1P3 = gl.vec2.add(
     [0.0, 0.0],
     midpoint,
-    gl.vec2.scale([0.0, 0.0], midpointVector, clamp(t, lowerBound, 1.0))
+    gl.vec2.scale([0.0, 0.0], midpointVectorP1P3, clamp(t, lowerBound, 1.0))
   );
+
+  const P2P4 = gl.vec2.sub([0.0, 0.0], p4, p2);
+  const midpointOnP2P4 = gl.vec2.add([0.0, 0.0], p2, gl.vec2.scale([0.0, 0.0], P2P4, midpointRatio));
+  const midpointVectorP2P4 = gl.vec2.sub([0.0, 0.0], midpointOnP2P4, midpoint);
   const midpointToMidpointOnP2P4 = gl.vec2.add(
     [0.0, 0.0],
     midpoint,
-    gl.vec2.scale([0.0, 0.0], midpointVector, -clamp(t, lowerBound, 1.0))
+    gl.vec2.scale([0.0, 0.0], midpointVectorP2P4, clamp(t, lowerBound, 1.0))
   );
   const interpolateP1P3 = new CurveInterpolator([p1, midpointToMidpointOnP1P3 as number[], p3], { tension: 0.0 });
   const interpolateP2P4 = new CurveInterpolator([p4, midpointToMidpointOnP2P4 as number[], p2], { tension: 0.0 });
@@ -208,6 +203,8 @@ export function metaball(
     p4,
     ...(interpolateP2P4.getPoints(10) as Array<[number, number]>),
     p2,
-  ].map(([x, y]) => new Point(x, y));
+  ]
+    .map(([x, y]) => new Point(x, y))
+    .reverse();
   return polygon;
 }

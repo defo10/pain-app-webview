@@ -1,4 +1,3 @@
-import gl from "gl-matrix";
 import { Point } from "pixi.js";
 
 export class PainShape {
@@ -6,15 +5,16 @@ export class PainShape {
     return Math.sqrt(Math.pow(a.position.x - b.position.x, 2) + Math.pow(a.position.y - b.position.y, 2));
   }
 
-  readonly position: Point;
-  readonly radius: number;
+  position: Point;
+  radius: number;
+  dragging: boolean | undefined;
 
   constructor(position: Point, radius: number) {
     this.position = position;
     this.radius = radius;
   }
 
-  get positionAsVec2(): gl.ReadonlyVec2 {
+  get positionAsVec2(): [number, number] {
     return [this.position.x, this.position.y];
   }
 }

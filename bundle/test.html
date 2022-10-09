@@ -26,11 +26,19 @@
 <body>
   <canvas id="animations-canvas"></canvas>
   <div>
-    <!-- geschlossenheut-->
     <div>
-      <input type="range" id="radius" name="Radius" min="1" max="300" value="20" step="1">
-      <label for="radius">Größe Punkte</label>
+      <input type="range" id="radius1" name="Radius" min="1" max="100" value="20" step="1">
+      <label for="radius">Größe Punkt 1</label>
     </div>
+    <div>
+      <input type="range" id="radius2" name="Radius" min="1" max="100" value="20" step="1">
+      <label for="radius">Größe Punkt 2</label>
+    </div>
+    <div>
+      <input type="range" id="radius3" name="Radius" min="1" max="100" value="20" step="1">
+      <label for="radius">Größe Punkt 3</label>
+    </div>
+    <!-- geschlossenheut-->
     <div><input type="range" id="closeness" name="closeness" min="0" max="1" value="0.5" step="0.01">
       <label for="closeness">Geschlossenheit</label>
     </div>
@@ -66,7 +74,7 @@
       <label for="colorShift">Farbverlauf</label>
     </div>
     <div>
-      <input type="range" id="alphaRatio" name="alphaRatio" min="0" max="1" value="0.1" step="0.01">
+      <input type="range" id="alphaRatio" name="alphaRatio" min="0" max="1" value="0.05" step="0.01">
       <label for="alphaRatio">Transparenz</label>
     </div>
   </div>

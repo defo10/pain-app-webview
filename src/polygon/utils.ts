@@ -47,7 +47,12 @@ export function bounds(
   center1: readonly [number, number],
   center2: readonly [number, number],
   inwardShift: number
-) {
+): {
+  p1: readonly [number, number];
+  p2: readonly [number, number];
+  p3: readonly [number, number];
+  p4: readonly [number, number];
+} {
   const HALF_PI = Math.PI / 2;
   const d = dist(center1, center2);
   let u1, u2;
@@ -74,7 +79,6 @@ export function bounds(
   const p3 = getVector(center2, angle3, radius2);
   const p4 = getVector(center2, angle4, radius2);
 
-  debugger;
   return { p1, p2, p3, p4 };
 }
 
