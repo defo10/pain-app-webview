@@ -1,4 +1,5 @@
-var lerp = require("interpolation").lerp;
+import * as gl from "gl-matrix";
+const lerp = require("interpolation").lerp;
 
 export function lerpPoints([x1, y1]: [number, number], [x2, y2]: [number, number], t: number): [number, number] {
   return [lerp(x1, x2, t), lerp(y1, y2, t)];
@@ -20,7 +21,7 @@ export function getVector(c: readonly [number, number], a: number, r: number): r
  * with the left point (p1), then right point (p2) looking from @param center1 to @param center2,
  * then left point (p3), then right point (p4)
  * 
- *           p1                                      p3
+ *           p2                                      p4
           +----------------------------------------+
     XXXXXXXXX                                    XXXXXXXXX
   XX        XXX                                 XX        XX
@@ -35,7 +36,7 @@ XX              X                           X             XX
   XXXXXXXXXXXXXX                             XXX      XXXX
      XX                                        XXXXXXXX
       +--------------------------------------------+
-      p2                                           p4
+      p1                                           p3
 
  *
  * scr: https://varun.ca/metaballs/
@@ -73,9 +74,14 @@ export function bounds(
   const p3 = getVector(center2, angle3, radius2);
   const p4 = getVector(center2, angle4, radius2);
 
+  debugger;
   return { p1, p2, p3, p4 };
 }
 
-export function clamp(n: number, min: number, max: number) {
+export function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
+
+export const insideCircle = ([x1, y1]: readonly [number, number], radius: number, [x2, y2]: gl.vec2): boolean => {
+  return Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) <= radius * radius;
+};

@@ -258,11 +258,11 @@ const animate = (time: number): void => {
         ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
         ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor]))!;
 
-      for (const path of polygonsUnioned!) {
+      for (const path of polygonsUnioned) {
         graphics.drawPolygon(
           path.map(([x, y]) => ({
-            x: x,
-            y: y,
+            x,
+            y,
           }))
         );
       }

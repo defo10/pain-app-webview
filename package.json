@@ -20,6 +20,7 @@
     "@typescript-eslint/parser": "^5.38.1",
     "concurrently": "^7.4.0",
     "eslint": "^8.24.0",
+    "eslint-config-prettier": "^8.5.0",
     "eslint-config-standard-with-typescript": "^23.0.0",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-n": "^15.3.0",
@@ -32,6 +33,7 @@
     "webpack-dev-server": "^4.11.1"
   },
   "dependencies": {
+    "@mathigon/euclid": "^1.1.2",
     "@pixi/accessibility": "^6.5.5",
     "@pixi/math": "^6.5.5",
     "@pixi/math-extras": "^6.5.5",
