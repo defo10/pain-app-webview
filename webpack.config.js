@@ -1,6 +1,4 @@
 const path = require('path')
-const WebpackBundleAnalyzer = require("webpack-bundle-analyzer")
-  .BundleAnalyzerPlugin;
 
 module.exports = {
   mode: "development",
@@ -9,7 +7,7 @@ module.exports = {
     main: "./src/app.ts",
   },
   output: {
-    path: path.resolve(__dirname, './bundle'),
+    path: path.resolve(__dirname, './docs'),
     filename: "index.js" // <--- Will be compiled to this single file
   },
   resolve: {
@@ -37,8 +35,5 @@ module.exports = {
   },
   experiments: {
     syncWebAssembly: true,
-  },
-  plugins: [
-    new WebpackBundleAnalyzer()
-  ]
+  }
 }
