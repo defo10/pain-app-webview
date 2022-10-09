@@ -294,30 +294,6 @@ const animate = (time: number): void => {
 
       const container = new Container();
 
-      for (const painShape of model.painShapes) {
-        const circle = new Graphics();
-        circle.beginFill(0xffffff, 0.1);
-        circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
-        circle.endFill();
-        circle.interactive = true;
-        circle.buttonMode = true;
-        circle.on("pointerdown", (e) => {
-          painShape.dragging = true;
-        });
-        circle.on("pointermove", (e) => {
-          if (painShape.dragging ?? false) {
-            painShape.position.x = e.data.global.x;
-            painShape.position.y = e.data.global.y;
-          }
-        });
-        circle.on("pointerup", (e) => {
-          painShape.position.x = e.data.global.x;
-          painShape.position.y = e.data.global.y;
-          painShape.dragging = false;
-        });
-        container.addChild(circle);
-      }
-
       container.addChild(graphics);
       renderer.render(container);
 
