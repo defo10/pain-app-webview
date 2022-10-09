@@ -58,8 +58,6 @@ const FRAG_SRC = (polygons: number[][]) => `#version 300 es
 precision highp float;
 
 #define TWO_PI 6.28318530718
-#define CENTERS_LEN 3
-#define SKELETONGRAPH_LEN 6
 
 #define PATHS_LEN ${polygons.reduce((sum, p) => sum + p.length, 0)}
 #define RANGES_LEN ${polygons.length}
@@ -71,17 +69,14 @@ uniform sampler2D uSampler;//The image data
 uniform vec4 inputSize;
 uniform vec4 outputFrame;
 
-uniform vec3 centers[CENTERS_LEN]; // arrays of all painshapes, in form [x, y, radius]
-uniform float outerColorStart; // the ratio with respect to the radius where the outer color is 100 % visible 
-uniform float alphaFalloutStart; // the ratio with respect to the radius where the shape starts fading out
+uniform float gradientLength;
+uniform float innerColorStart; // the ratio with respect to gradientLength where the outer color is 100 % visible 
+uniform float alphaFallOutEnd; // the point where fading out should stop wrt distance, [0, 1]
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
-// both work together and form a connection [skeletonGraphFrom[i], skeletonGraphTo[i]]
-uniform vec3 skeletonGraphFrom[SKELETONGRAPH_LEN];
-uniform vec3 skeletonGraphTo[SKELETONGRAPH_LEN];
 
-uniform vec2 paths[PATHS_LEN];
-uniform ivec2 ranges[RANGES_LEN];
+uniform vec2 paths[PATHS_LEN]; // flattened list of all paths of all polygons
+uniform ivec2 ranges[RANGES_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
 
 
 // src https://www.shadertoy.com/view/XljGzV
@@ -154,39 +149,29 @@ void main(void) {
         vec2 to = paths[i + 1];
         float minDist = minimum_distance(from, to, screenCoord);
         dist = min(dist, minDist);
-
-        if (minDist < 1.0) {
-          outputColor = vec4(0., 0., 0., 1.0);
-          return;
-        }
-
       }
 
       vec2 last = paths[range.y - 1];
       vec2 first = paths[range.x];
       float minDist = minimum_distance(last, first, screenCoord);
       dist = min(dist, minDist);
-
-      if (minDist < 2.0) {
-        outputColor = vec4(0., 0., 0., 1.0);
-        return;
-      }
     }
 
-    float pct = smoothstep(0.0, 10.0, dist);
+    float pct = smoothstep(0.0, gradientLength * innerColorStart, dist);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
-    vec4 colorGradient = mix(innerColor, outerColor, pct);
+    vec4 colorGradient = mix(outerColor, innerColor, pct);
     
-    outputColor = colorGradient;
-    // this causes the color to blur out starting from alphaFalloutStart % of radius
-    //vec3 colorHsl = rgb2hsl(colorGradient.rgb);
-    // -> [0.0, 1.0]
-    //float lightnessIncreaseRatio = smoothstep(radius * alphaFalloutStart * 0.9999, radius, minDistance);
-    // stays colorHsl.z for all under radius * alphaFallout
-    //float lightness = mix(colorHsl.z, 1.0, lightnessIncreaseRatio);
-    //vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
-    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    //// Blurring ////
+    // this causes the color to blur out starting from alphaFallOutEnd % of radius
+    vec3 colorHsl = rgb2hsl(colorGradient.rgb);
+    // fading into alpha causes some weird gradients for colors like orange, that's why
+    // instead we fade to white by increasing the lightness of the HSL color -> [0.0, 1.0]
+    float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
+    float lightness = mix(1.0, colorHsl.z, lightnessPct);
+    vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
+    //outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
+    outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
 }
 `;
 
@@ -287,9 +272,9 @@ const animate = (time: number): void => {
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
       const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
       const uniforms = {
-        centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
-        outerColorStart: valueFromElement("colorShift"),
-        alphaFalloutStart: valueFromElement("alphaRatio"),
+        gradientLength: _.max(model.painShapes.map((p) => p.radius))! * 2,
+        innerColorStart: valueFromElement("colorShift"),
+        alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
         paths: new Float32Array(polygonsFlattened.flat()),
