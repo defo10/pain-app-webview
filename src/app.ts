@@ -126,21 +126,17 @@ vec3 rgb2hsl( in vec3 c ){
 	return vec3( h, s, l );
 }
 
-// Return [minimum distance between line segment vw and point p, ratio of where on vw the projection falls]
-// src: https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
-vec2 min_distance_to_line(vec2 v, vec2 w, vec2 p) {
+float minimum_distance(vec2 v, vec2 w, vec2 p) {
+  // Return minimum distance between line segment vw and point p
   float l2 = pow(w.x - v.x, 2.0) + pow(w.y - v.y, 2.0);  // i.e. |w-v|^2 -  avoid a sqrt
-  if (l2 == 0.0) return vec2(distance(p, v), 0.0);   // v == w case
   // Consider the line extending the segment, parameterized as v + t (w - v).
   // We find projection of point p onto the line. 
   // It falls where t = [(p-v) . (w-v)] / |w-v|^2
   // We clamp t from [0,1] to handle points outside the segment vw.
-  float t = max(0.0, min(1.0, dot(p - v, w - v) / l2));
+  float t = clamp(dot(p - v, w - v) / l2, 0., 1.);
   vec2 projection = v + t * (w - v);  // Projection falls on the segment
-  float ratio = distance(v, projection) / distance(v, w); // length ratio wrt to line segment
-  return vec2(distance(p, projection), ratio);
+  return distance(p, projection);
 }
-
 
 void main(void) {
     outputColor = texture(uSampler, vTextureCoord);
@@ -149,28 +145,40 @@ void main(void) {
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
     float dist = 1000000.0;
-    for (int n = 0; n < RANGES_LEN - 1; n++) {
+    for (int n = 0; n < RANGES_LEN; n++) {
       ivec2 range = ranges[n];
 
-      for (int i = range.x; i < range.y; i++) {
+      for (int i = range.x; i < range.y - 1; i++) {
+        // at range.y - 1, to points to last path
         vec2 from = paths[i];
         vec2 to = paths[i + 1];
-        vec2 minDist = min_distance_to_line(from, to, screenCoord);
-        dist = min(dist, minDist.x);
+        float minDist = minimum_distance(from, to, screenCoord);
+        dist = min(dist, minDist);
+
+        if (minDist < 1.0) {
+          outputColor = vec4(0., 0., 0., 1.0);
+          return;
+        }
+
       }
 
       vec2 last = paths[range.y - 1];
       vec2 first = paths[range.x];
-      vec2 minDist = min_distance_to_line(last, first, screenCoord);
-      dist = min(dist, minDist.x);
+      float minDist = minimum_distance(last, first, screenCoord);
+      dist = min(dist, minDist);
+
+      if (minDist < 2.0) {
+        outputColor = vec4(0., 0., 0., 1.0);
+        return;
+      }
     }
 
-    float pct = smoothstep(0.0, 100.0, dist);
+    float pct = smoothstep(0.0, 10.0, dist);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(innerColor, outerColor, pct);
     
-    outputColor = vec4(1.0, 0.0, 0.0, pct);
+    outputColor = colorGradient;
     // this causes the color to blur out starting from alphaFalloutStart % of radius
     //vec3 colorHsl = rgb2hsl(colorGradient.rgb);
     // -> [0.0, 1.0]
@@ -250,21 +258,22 @@ const animate = (time: number): void => {
       graphics.geometry.batchable = false;
       graphics.beginFill(0x000000);
 
-      const scalingFactor = 10e4;
-      const polygonsUnionedUnscaled = clipper.clipToPaths({
-        clipType: clipperLib.ClipType.Union,
-        subjectFillType: clipperLib.PolyFillType.NonZero,
-        subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
-          polygons.map((p) => ({
-            closed: true,
-            data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
-          }))
-        ),
-      });
-      const polygons = polygonsUnionedUnscaled?.map((p) =>
-        p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor])
-      )!;
-      for (const path of polygons!) {
+      const scalingFactor = 10e8;
+      const polygonsUnioned = clipper
+        .clipToPaths({
+          clipType: clipperLib.ClipType.Union,
+          subjectFillType: clipperLib.PolyFillType.NonZero,
+          subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
+            polygons.map((p) => ({
+              closed: true,
+              data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
+            }))
+          ),
+        })
+        ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
+        ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor]))!;
+
+      for (const path of polygonsUnioned!) {
         graphics.drawPolygon(
           path.map(([x, y]) => ({
             x: x,
@@ -276,25 +285,15 @@ const animate = (time: number): void => {
       graphics.endFill();
 
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
-      const polygonsFlattened = polygons.map((path) => path.flat());
+      const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
       const uniforms = {
         centers: new Float32Array(model.painShapes.map((p) => [p.position.x, p.position.y, p.radius]).flat()),
         outerColorStart: valueFromElement("colorShift"),
         alphaFalloutStart: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
-        skeletonGraphFrom: skeletonGraph.flatMap((connection) => [
-          connection.from.position.x,
-          connection.from.position.y,
-          connection.from.radius,
-        ]),
-        skeletonGraphTo: skeletonGraph.flatMap((connection) => [
-          connection.to.position.x,
-          connection.to.position.y,
-          connection.to.radius,
-        ]),
-        polygons: new Float32Array(polygonsFlattened.flat()),
-        ranges: new Uint32Array(getRanges(polygonsFlattened).flat()),
+        paths: new Float32Array(polygonsFlattened.flat()),
+        ranges: new Int32Array(getRanges(polygonsFlattened).flat()),
       };
       debugger;
       const shader = new Filter(VERT_SRC, FRAG_SRC(polygonsFlattened), uniforms);
@@ -302,17 +301,8 @@ const animate = (time: number): void => {
 
       graphics.filters = [shader];
 
-      const debug = new Graphics();
-      for (const conn of skeletonGraph) {
-        debug
-          .lineStyle({ color: 0x000000, alpha: 1.0, width: 3 })
-          .moveTo(conn.from.position.x, conn.from.position.y)
-          .lineTo(conn.to.position.x, conn.to.position.y);
-      }
       const container = new Container();
       container.addChild(graphics);
-      container.addChild(debug);
-
       renderer.render(container);
 
       requestAnimationFrame(animate);
