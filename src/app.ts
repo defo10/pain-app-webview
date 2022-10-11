@@ -2,9 +2,23 @@ import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
-import { autoDetectRenderer, Container, ENV, Filter, Graphics, Point, settings } from "pixi.js";
-import "@pixi/math-extras";
+import {
+  autoDetectRenderer,
+  BLEND_MODES,
+  Container,
+  ENV,
+  Filter,
+  Graphics,
+  Point,
+  settings,
+  Sprite,
+  Texture,
+} from "pixi.js";
 import { metaballsPaths } from "./polygon";
+import { Assets } from "@pixi/assets";
+
+// extending vanilla pixi
+import "@pixi/math-extras";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -18,7 +32,6 @@ const renderer = autoDetectRenderer({
   height: document.getElementById("animations-canvas")?.clientHeight,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
-  backgroundAlpha: 1,
   backgroundColor: 0xffffff,
 });
 
@@ -172,14 +185,17 @@ void main(void) {
     float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
     float lightness = mix(1.0, colorHsl.z, lightnessPct);
     vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
-    //outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
-    outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
+    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
 }
 `;
 
 const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
+
+Assets.addBundle("body", { headLeft: "./assets/head.png" });
+const assets = Assets.loadBundle("body");
 
 const valueFromElement = (id: string) => parseFloat((document.getElementById(id) as HTMLInputElement).value);
 /** returns HSL! */
@@ -242,16 +258,23 @@ const animate = (time: number): void => {
   });
   model.closeness = valueFromElement("closeness");
 
-  clipper
-    .then((clipper) => {
+  Promise.all([clipper, assets])
+    .then(([clipper, assets]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }]) => {
       const { paths } = metaballsPaths(clipper, model);
+
+      const scene = new Container();
+
+      const backgroundImage = new Sprite(assets.headLeft);
+      const ratio = Math.min(renderer.width / backgroundImage.width, renderer.height / backgroundImage.height);
+      backgroundImage.scale.x = backgroundImage.scale.y = ratio;
+
+      scene.addChild(backgroundImage);
 
       const graphics = new Graphics();
       graphics.geometry.batchable = false;
       graphics.beginFill(0x000000);
 
       const scalingFactor = 10e8;
-      debugger;
       const polygonsUnioned = clipper
         .clipToPaths({
           clipType: clipperLib.ClipType.Union,
@@ -290,17 +313,14 @@ const animate = (time: number): void => {
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
-      debugger;
       const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
       shader.resolution = RESOLUTION;
 
       graphics.filters = [shader];
 
-      const container = new Container();
-
       for (const painShape of model.painShapes) {
         const circle = new Graphics();
-        circle.beginFill(0xffffff, 0.1);
+        circle.beginFill(0xffffff, 0.00001);
         circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
         circle.endFill();
         circle.interactive = true;
@@ -319,11 +339,11 @@ const animate = (time: number): void => {
           painShape.position.y = e.data.global.y;
           painShape.dragging = false;
         });
-        container.addChild(circle);
+        scene.addChild(circle);
       }
 
-      container.addChild(graphics);
-      renderer.render(container);
+      scene.addChild(graphics);
+      renderer.render(scene);
 
       requestAnimationFrame(animate);
     })

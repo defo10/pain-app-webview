@@ -37,6 +37,7 @@
   "dependencies": {
     "@mathigon/euclid": "^1.1.2",
     "@pixi/accessibility": "^6.5.5",
+    "@pixi/assets": "^6.5.5",
     "@pixi/math": "^6.5.5",
     "@pixi/math-extras": "^6.5.5",
     "curve-interpolator": "^2.0.8",
