@@ -6,9 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc --build",
-    "build-wp": "npx webpack --mode production --optimization-minimize",
+    "build-wp": "npx webpack --mode production",
     "clean": "tsc --build --clean",
-    "watch-bundle:server": "npx webpack serve",
+    "watch-bundle:server": "npx webpack serve --mode=development",
     "watch-compile:server": "tsc --watch",
     "concurrent-watch": "concurrently \"npm:watch-*\""
   },
