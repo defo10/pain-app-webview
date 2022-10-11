@@ -18,7 +18,7 @@ const renderer = autoDetectRenderer({
   height: document.getElementById("animations-canvas")?.clientHeight,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
-  backgroundAlpha: 0,
+  backgroundAlpha: 1,
   backgroundColor: 0xffffff,
 });
 
@@ -54,14 +54,14 @@ void main(void)
 }
 `;
 
-const FRAG_SRC = (polygons: number[][]) => `#version 300 es
+const FRAG_SRC = `#version 300 es
 
 precision highp float;
 
 #define TWO_PI 6.28318530718
 
-#define PATHS_LEN ${polygons.reduce((sum, p) => sum + p.length, 0)}
-#define RANGES_LEN ${polygons.length}
+#define PATHS_MAX_LEN 500
+#define RANGES_MAX_LEN 20
 
 out vec4 outputColor;
 
@@ -76,8 +76,9 @@ uniform float alphaFallOutEnd; // the point where fading out should stop wrt dis
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
-uniform vec2 paths[PATHS_LEN]; // flattened list of all paths of all polygons
-uniform ivec2 ranges[RANGES_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
+uniform vec2 paths[PATHS_MAX_LEN]; // flattened list of all paths of all polygons
+uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
+uniform int rangesLen; // exclusive, i.e. ranges[maxRangeIndex] is invalid
 
 
 // src https://www.shadertoy.com/view/XljGzV
@@ -141,7 +142,7 @@ void main(void) {
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
     float dist = 1000000.0;
-    for (int n = 0; n < RANGES_LEN; n++) {
+    for (int n = 0; n < rangesLen; n++) {
       ivec2 range = ranges[n];
 
       for (int i = range.x; i < range.y - 1; i++) {
@@ -278,6 +279,7 @@ const animate = (time: number): void => {
 
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
       const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
+      const ranges = getRanges(polygonsFlattened).flat();
       const uniforms = {
         gradientLength: _.max(model.painShapes.map((p) => p.radius))! * 2,
         innerColorStart: valueFromElement("colorShift"),
@@ -285,9 +287,11 @@ const animate = (time: number): void => {
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
         paths: new Float32Array(polygonsFlattened.flat()),
-        ranges: new Int32Array(getRanges(polygonsFlattened).flat()),
+        ranges: new Int32Array(ranges),
+        rangesLen: Math.floor(ranges.length / 2),
       };
-      const shader = new Filter(VERT_SRC, FRAG_SRC(polygonsFlattened), uniforms);
+      debugger;
+      const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
       shader.resolution = RESOLUTION;
 
       graphics.filters = [shader];
