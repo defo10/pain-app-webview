@@ -28,7 +28,7 @@ module.exports = {
   },
   devServer: {
     static: {
-      directory: path.join(__dirname, 'bundle'),
+      directory: path.join(__dirname, '/docs'),
     },
     compress: false,
     port: 9000,
