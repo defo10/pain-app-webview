@@ -8,11 +8,14 @@ import {
   Container,
   ENV,
   Filter,
+  filters,
+  generateUniformBufferSync,
   Graphics,
   Point,
   settings,
   Sprite,
   Texture,
+  UniformGroup,
 } from "pixi.js";
 import { metaballsPaths } from "./polygon";
 import { Assets } from "@pixi/assets";
@@ -25,7 +28,7 @@ gl.glMatrix.setMatrixArrayType(Array);
 
 settings.PREFER_ENV = ENV.WEBGL2;
 
-const RESOLUTION = 1;
+const RESOLUTION = window.devicePixelRatio;
 
 const renderer = autoDetectRenderer({
   width: document.getElementById("animations-canvas")?.clientWidth,
@@ -73,7 +76,7 @@ precision highp float;
 
 #define TWO_PI 6.28318530718
 
-#define PATHS_MAX_LEN 500
+#define PATHS_MAX_LEN 4096
 #define RANGES_MAX_LEN 20
 
 out vec4 outputColor;
@@ -89,7 +92,9 @@ uniform float alphaFallOutEnd; // the point where fading out should stop wrt dis
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
-uniform vec2 paths[PATHS_MAX_LEN]; // flattened list of all paths of all polygons
+uniform paths_ubo {
+  vec2 paths[PATHS_MAX_LEN];
+}; // flattened list of all paths of all polygons
 uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
 uniform int rangesLen; // exclusive, i.e. ranges[maxRangeIndex] is invalid
 
@@ -185,8 +190,8 @@ void main(void) {
     float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
     float lightness = mix(1.0, colorHsl.z, lightnessPct);
     vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
-    outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
-    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    //outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
+    outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
 }
 `;
 
@@ -265,7 +270,11 @@ const animate = (time: number): void => {
       const scene = new Container();
 
       const backgroundImage = new Sprite(assets.headLeft);
-      const ratio = Math.min(renderer.width / backgroundImage.width, renderer.height / backgroundImage.height);
+      debugger;
+      const ratio = Math.min(
+        renderer.width / RESOLUTION / backgroundImage.width,
+        renderer.height / RESOLUTION / backgroundImage.height
+      );
       backgroundImage.scale.x = backgroundImage.scale.y = ratio;
 
       scene.addChild(backgroundImage);
@@ -275,19 +284,20 @@ const animate = (time: number): void => {
       graphics.beginFill(0x000000);
 
       const scalingFactor = 10e8;
-      const polygonsUnioned = clipper
-        .clipToPaths({
-          clipType: clipperLib.ClipType.Union,
-          subjectFillType: clipperLib.PolyFillType.NonZero,
-          subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
-            polygons.map((p) => ({
-              closed: true,
-              data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
-            }))
-          ),
-        })
-        ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
-        ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor]))!;
+      const polygonsUnioned =
+        clipper
+          .clipToPaths({
+            clipType: clipperLib.ClipType.Union,
+            subjectFillType: clipperLib.PolyFillType.NonZero,
+            subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
+              polygons.map((p) => ({
+                closed: true,
+                data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
+              }))
+            ),
+          })
+          ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
+          ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor])) ?? [];
 
       for (const path of polygonsUnioned) {
         graphics.drawPolygon(
@@ -309,14 +319,22 @@ const animate = (time: number): void => {
         alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
-        paths: new Float32Array(polygonsFlattened.flat()),
+        paths_ubo: new UniformGroup(
+          {
+            paths: new Float32Array(polygonsFlattened.flat()),
+          },
+          true,
+          true
+        ),
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
-      const shader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
-      shader.resolution = RESOLUTION;
+      if (polygonsFlattened.flat().length >= 4096)
+        console.log("Too many polygons nodes! UBO Buffer size limit reached");
+      const gradientShader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
+      gradientShader.resolution = RESOLUTION;
 
-      graphics.filters = [shader];
+      graphics.filters = [gradientShader];
 
       for (const painShape of model.painShapes) {
         const circle = new Graphics();
