@@ -22,6 +22,7 @@ import { Assets } from "@pixi/assets";
 
 // extending vanilla pixi
 import "@pixi/math-extras";
+import { BackdropFilter } from "@pixi/picture";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -81,8 +82,10 @@ precision highp float;
 
 out vec4 outputColor;
 
-in vec2 vTextureCoord;//The coordinates of the current pixel
-uniform sampler2D uSampler;//The image data
+in vec2 vTextureCoord; //The coordinates of the current pixel
+uniform sampler2D uSampler; //The image data
+uniform sampler2D uBackdrop; // Backdrop texture with destination colors
+uniform vec2 uBackdrop_flipY;
 uniform vec4 inputSize;
 uniform vec4 outputFrame;
 
@@ -157,6 +160,9 @@ void main(void) {
     outputColor = texture(uSampler, vTextureCoord);
     if (outputColor.a == 0.0) return;
 
+    vec2 backdropCoord = vec2(vTextureCoord.x, uBackdrop_flipY.x + uBackdrop_flipY.y * vTextureCoord.y);
+    vec4 backgroundColor = texture(uBackdrop, backdropCoord);
+    
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
     float dist = 1000000.0;
@@ -182,16 +188,21 @@ void main(void) {
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(outerColor, innerColor, pct);
     
+    float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
+    outputColor = mix(backgroundColor, colorGradient, lightnessPct);
+    return;
+
     //// Blurring ////
     // this causes the color to blur out starting from alphaFallOutEnd % of radius
     vec3 colorHsl = rgb2hsl(colorGradient.rgb);
     // fading into alpha causes some weird gradients for colors like orange, that's why
     // instead we fade to white by increasing the lightness of the HSL color -> [0.0, 1.0]
-    float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
+    //float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
     float lightness = mix(1.0, colorHsl.z, lightnessPct);
     vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
     //outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
-    outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
+    outputColor = mix(backgroundColor, vec4(hsl2rgb(colorHslLighter), 1.0), lightnessPct);
 }
 `;
 
@@ -331,8 +342,11 @@ const animate = (time: number): void => {
       };
       if (polygonsFlattened.flat().length >= 4096)
         console.log("Too many polygons nodes! UBO Buffer size limit reached");
-      const gradientShader = new Filter(VERT_SRC, FRAG_SRC, uniforms);
+
+      const gradientShader = new BackdropFilter(VERT_SRC, FRAG_SRC, uniforms);
+      gradientShader.backdropUniformName = "uBackdrop";
       gradientShader.resolution = RESOLUTION;
+      gradientShader.padding = 15; // when not using padding, there are black stripe artefacts
 
       graphics.filters = [gradientShader];
 
