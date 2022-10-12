@@ -77,7 +77,7 @@ precision highp float;
 
 #define TWO_PI 6.28318530718
 
-#define PATHS_MAX_LEN 500
+#define PATHS_MAX_LEN 300
 #define RANGES_MAX_LEN 20
 
 out vec4 outputColor;
@@ -331,9 +331,10 @@ const animate = (time: number): void => {
         innerColorHSL: innerColor,
         paths_ubo: new UniformGroup(
           {
+            id: 123456,
             paths: new Float32Array(polygonsFlattened.flat()),
           },
-          true,
+          false,
           true
         ),
         ranges: new Int32Array(ranges),
