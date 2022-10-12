@@ -19,6 +19,7 @@ import {
 } from "pixi.js";
 import { metaballsPaths } from "./polygon";
 import { Assets } from "@pixi/assets";
+import Triangle from "triangle-wasm";
 
 // extending vanilla pixi
 import "@pixi/math-extras";
@@ -210,6 +211,8 @@ const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
 
+const triangleInit = Triangle.init("/assets/triangle.out.wasm");
+
 Assets.addBundle("body", { headLeft: "./assets/head.png" });
 const assets = Assets.loadBundle("body");
 
@@ -274,8 +277,9 @@ const animate = (time: number): void => {
   });
   model.closeness = valueFromElement("closeness");
 
-  Promise.all([clipper, assets])
-    .then(([clipper, assets]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }]) => {
+  Promise.all([clipper, assets, triangleInit])
+    .then(([clipper, assets, __]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }, any]) => {
+      const startTime = Date.now();
       const { paths } = metaballsPaths(clipper, model);
 
       const scene = new Container();
@@ -288,10 +292,6 @@ const animate = (time: number): void => {
       backgroundImage.scale.x = backgroundImage.scale.y = ratio;
 
       scene.addChild(backgroundImage);
-
-      const graphics = new Graphics();
-      graphics.geometry.batchable = false;
-      graphics.beginFill(0x000000);
 
       const scalingFactor = 10e8;
       const polygonsUnioned =
@@ -309,37 +309,31 @@ const animate = (time: number): void => {
           ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
           ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor])) ?? [];
 
-      for (const path of polygonsUnioned) {
-        graphics.drawPolygon(
-          path.map(([x, y]) => ({
-            x,
-            y,
-          }))
-        );
-      }
-
-      graphics.endFill();
-
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
       const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
       const ranges = getRanges(polygonsFlattened).flat();
+      const pathsFlattened = polygonsFlattened.flat();
       const uniforms = {
         gradientLength: _.max(model.painShapes.map((p) => p.radius)) ?? 0 * 2,
         innerColorStart: valueFromElement("colorShift"),
         alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
-        paths_ubo: new UniformGroup(
-          {
-            id: 123456,
-            paths: new Float32Array(polygonsFlattened.flat()),
-          },
-          false,
-          true
-        ),
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
+
+      for (let i = 0; i < polygonsFlattened.length; i++) {
+        const polygon = polygonsFlattened[i];
+        const range = ranges[i];
+
+        const input = Triangle.makeIO({
+          pointlist: pathsFlattened,
+        });
+        const output = Triangle.makeIO();
+      }
+
+      Triangle.triangulate({}, { ...input, segmentlist: ranges }, output);
       if (polygonsFlattened.flat().length >= 4096)
         console.log("Too many polygons nodes! UBO Buffer size limit reached");
 
@@ -375,8 +369,13 @@ const animate = (time: number): void => {
       }
 
       scene.addChild(graphics);
-      renderer.render(scene);
 
+      const deltaTime = Date.now() - startTime;
+      console.log(`Time: ${deltaTime.toFixed(3)}`);
+
+      renderer.render(scene);
+      Triangle.freeIO(input, true);
+      Triangle.freeIO(output);
       requestAnimationFrame(animate);
     })
     .catch((err) => console.log(err));

@@ -16,6 +16,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/lodash": "^4.14.186",
+    "@types/triangle-wasm": "^1.0.0",
     "@typescript-eslint/eslint-plugin": "^5.38.1",
     "@typescript-eslint/parser": "^5.38.1",
     "concurrently": "^7.4.0",
@@ -48,7 +49,8 @@
     "js-angusj-clipper": "^1.2.1",
     "lodash": "^4.17.21",
     "path-browserify": "^1.0.1",
-    "pixi.js": "^6.5.4"
+    "pixi.js": "^6.5.4",
+    "triangle-wasm": "^1.0.0"
   },
   "eslintConfig": {
     "env": {
