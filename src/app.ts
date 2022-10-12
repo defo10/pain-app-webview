@@ -213,7 +213,7 @@ const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
 Assets.addBundle("body", { headLeft: "./assets/head.png" });
 const assets = Assets.loadBundle("body");
 
-const valueFromElement = (id: string) => parseFloat((document.getElementById(id) as HTMLInputElement).value);
+const valueFromElement = (id: string): number => parseFloat((document.getElementById(id) as HTMLInputElement).value);
 /** returns HSL! */
 const outerColorPicker = (colorCode: string): [number, number, number] | null => {
   switch (colorCode) {
@@ -239,13 +239,13 @@ const innerColorPicker = (colorCode: string, lightness: number): [number, number
       return [0, 1.0, lightness];
   }
 };
-const checkedRadioBtn = (name: string) =>
+const checkedRadioBtn = (name: string): string =>
   (document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement)?.value;
 
 const getRanges = (arr: number[][]): number[] => {
   const ranges: number[] = [];
   for (const sub of arr) {
-    if (ranges.length == 0) {
+    if (ranges.length === 0) {
       ranges.push(0, Math.floor(sub.length / 2));
       continue;
     }
@@ -281,7 +281,6 @@ const animate = (time: number): void => {
       const scene = new Container();
 
       const backgroundImage = new Sprite(assets.headLeft);
-      debugger;
       const ratio = Math.min(
         renderer.width / RESOLUTION / backgroundImage.width,
         renderer.height / RESOLUTION / backgroundImage.height
@@ -325,7 +324,7 @@ const animate = (time: number): void => {
       const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
       const ranges = getRanges(polygonsFlattened).flat();
       const uniforms = {
-        gradientLength: _.max(model.painShapes.map((p) => p.radius))! * 2,
+        gradientLength: _.max(model.painShapes.map((p) => p.radius)) ?? 0 * 2,
         innerColorStart: valueFromElement("colorShift"),
         alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
