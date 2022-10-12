@@ -77,7 +77,7 @@ precision highp float;
 
 #define TWO_PI 6.28318530718
 
-#define PATHS_MAX_LEN 4096
+#define PATHS_MAX_LEN 500
 #define RANGES_MAX_LEN 20
 
 out vec4 outputColor;
