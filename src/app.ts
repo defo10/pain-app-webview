@@ -2,21 +2,7 @@ import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
-import {
-  autoDetectRenderer,
-  BLEND_MODES,
-  Container,
-  ENV,
-  Filter,
-  filters,
-  generateUniformBufferSync,
-  Graphics,
-  Point,
-  settings,
-  Sprite,
-  Texture,
-  UniformGroup,
-} from "pixi.js";
+import { autoDetectRenderer, Container, ENV, Graphics, Point, settings, Sprite, Texture } from "pixi.js";
 import { metaballsPaths } from "./polygon";
 import { Assets } from "@pixi/assets";
 import Triangle from "triangle-wasm";
@@ -24,6 +10,7 @@ import Triangle from "triangle-wasm";
 // extending vanilla pixi
 import "@pixi/math-extras";
 import { BackdropFilter } from "@pixi/picture";
+import earcut from "earcut";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -323,17 +310,18 @@ const animate = (time: number): void => {
         rangesLen: Math.floor(ranges.length / 2),
       };
 
+      let coordinates = [];
       for (let i = 0; i < polygonsFlattened.length; i++) {
-        const polygon = polygonsFlattened[i];
-        const range = ranges[i];
+        const polygon = polygonsFlattened[i].map((n) => Math.round(n * scalingFactor));
 
-        const input = Triangle.makeIO({
-          pointlist: pathsFlattened,
-        });
-        const output = Triangle.makeIO();
+        const triangles = earcut(polygon);
+
+        for (let i = 0; i < triangles.length; i += 3) {
+          coordinates.push([polygon[triangles[i]], polygon[triangles[i + 1]], polygon[triangles[i + 2]]]);
+        }
       }
+      coordinates = coordinates.map((n) => n / scalingFactor);
 
-      Triangle.triangulate({}, { ...input, segmentlist: ranges }, output);
       if (polygonsFlattened.flat().length >= 4096)
         console.log("Too many polygons nodes! UBO Buffer size limit reached");
 
@@ -341,8 +329,6 @@ const animate = (time: number): void => {
       gradientShader.backdropUniformName = "uBackdrop";
       gradientShader.resolution = RESOLUTION;
       gradientShader.padding = 15; // when not using padding, there are black stripe artefacts
-
-      graphics.filters = [gradientShader];
 
       for (const painShape of model.painShapes) {
         const circle = new Graphics();
@@ -368,14 +354,10 @@ const animate = (time: number): void => {
         scene.addChild(circle);
       }
 
-      scene.addChild(graphics);
-
       const deltaTime = Date.now() - startTime;
       console.log(`Time: ${deltaTime.toFixed(3)}`);
 
       renderer.render(scene);
-      Triangle.freeIO(input, true);
-      Triangle.freeIO(output);
       requestAnimationFrame(animate);
     })
     .catch((err) => console.log(err));
