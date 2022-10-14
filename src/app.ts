@@ -4,13 +4,10 @@ import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
 import {
   autoDetectRenderer,
-  BLEND_MODES,
   Container,
   ENV,
-  Filter,
-  filters,
-  generateUniformBufferSync,
   Graphics,
+  MIPMAP_MODES,
   Point,
   settings,
   Sprite,
@@ -18,11 +15,11 @@ import {
   UniformGroup,
 } from "pixi.js";
 import { metaballsPaths } from "./polygon";
-import { Assets } from "@pixi/assets";
 
 // extending vanilla pixi
 import "@pixi/math-extras";
-import { BackdropFilter } from "@pixi/picture";
+import { GradientFilter } from "./filters/GradientFilter";
+import { Assets } from "@pixi/assets";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -31,45 +28,19 @@ settings.PREFER_ENV = ENV.WEBGL2;
 
 const RESOLUTION = window.devicePixelRatio;
 
+const DOWNSCALE_FACTOR = 1.0;
+
 const renderer = autoDetectRenderer({
-  width: document.getElementById("animations-canvas")?.clientWidth,
-  height: document.getElementById("animations-canvas")?.clientHeight,
+  width: (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR,
+  height: (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
 });
+renderer.options.powerPreference = "high-performance";
 
-const VERT_SRC = `#version 300 es
-
-precision highp float;
-
-in vec2 aVertexPosition;
-
-uniform mat3 projectionMatrix;
-
-out vec2 vTextureCoord;
-
-uniform vec4 inputSize;
-uniform vec4 outputFrame;
-
-vec4 filterVertexPosition( void )
-{
-    vec2 position = aVertexPosition * max(outputFrame.zw, vec2(0.)) + outputFrame.xy;
-
-    return vec4((projectionMatrix * vec3(position, 1.0)).xy, 0.0, 1.0);
-}
-
-vec2 filterTextureCoord( void )
-{
-    return aVertexPosition * (outputFrame.zw * inputSize.zw);
-}
-
-void main(void)
-{
-    gl_Position = filterVertexPosition();
-    vTextureCoord = filterTextureCoord();
-}
-`;
+settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
+settings.TARGET_FPMS = 30;
 
 const FRAG_SRC = `#version 300 es
 
@@ -282,8 +253,8 @@ const animate = (time: number): void => {
 
       const backgroundImage = new Sprite(assets.headLeft);
       const ratio = Math.min(
-        renderer.width / RESOLUTION / backgroundImage.width,
-        renderer.height / RESOLUTION / backgroundImage.height
+        (renderer.width * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.width,
+        (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
       );
       backgroundImage.scale.x = backgroundImage.scale.y = ratio;
 
@@ -331,7 +302,6 @@ const animate = (time: number): void => {
         innerColorHSL: innerColor,
         paths_ubo: new UniformGroup(
           {
-            id: 123456,
             paths: new Float32Array(polygonsFlattened.flat()),
           },
           false,
@@ -343,12 +313,8 @@ const animate = (time: number): void => {
       if (polygonsFlattened.flat().length >= 4096)
         console.log("Too many polygons nodes! UBO Buffer size limit reached");
 
-      const gradientShader = new BackdropFilter(VERT_SRC, FRAG_SRC, uniforms);
-      gradientShader.backdropUniformName = "uBackdrop";
-      gradientShader.resolution = RESOLUTION;
-      gradientShader.padding = 15; // when not using padding, there are black stripe artefacts
-
-      graphics.filters = [gradientShader];
+      const brightnessShader = new GradientFilter(uniforms, RESOLUTION);
+      graphics.filters = [brightnessShader];
 
       for (const painShape of model.painShapes) {
         const circle = new Graphics();
@@ -375,7 +341,9 @@ const animate = (time: number): void => {
       }
 
       scene.addChild(graphics);
-      renderer.render(scene);
+      renderer.render(scene, { clear: true });
+      // renderer.render(scene, { clear: true });
+      scene.filters = null;
 
       requestAnimationFrame(animate);
     })
