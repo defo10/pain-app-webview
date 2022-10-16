@@ -20,11 +20,20 @@ class GradientFilter extends BackdropFilter {
   private _dfFilter: DistanceFieldFilter;
   protected _resolution: number = 1.0;
 
-  constructor(uniforms: GradientFilterOptions, res: number) {
-    super(vertex, fragment, uniforms);
-
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    const { paths_ubo, gradientLength, ranges, rangesLen } = uniforms;
+  constructor(
+    {
+      gradientLength,
+      innerColorStart,
+      alphaFallOutEnd,
+      outerColorHSL,
+      innerColorHSL,
+      paths_ubo,
+      ranges,
+      rangesLen,
+    }: GradientFilterOptions,
+    res: number
+  ) {
+    super(vertex, fragment, { innerColorStart, alphaFallOutEnd, outerColorHSL, innerColorHSL });
 
     this._dfFilter = new DistanceFieldFilter({
       paths_ubo,
