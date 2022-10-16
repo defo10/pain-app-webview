@@ -24,6 +24,7 @@ import "@pixi/math-extras";
 import { GradientFilter } from "./filters/GradientFilter";
 import { Assets } from "@pixi/assets";
 import * as poly2tri from "poly2tri";
+import { gradientShaderFrom } from "./filters/GradientShader";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -184,13 +185,27 @@ const animate = (time: number): void => {
         p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor] as [number, number])
       );
 
+      const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
+      const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
+      const ranges = getRanges(polygonsFlattened).flat();
+      const uniforms = {
+        gradientLength: _.max(model.painShapes.map((p) => p.radius)) ?? 0 * 2,
+        innerColorStart: valueFromElement("colorShift"),
+        alphaFallOutEnd: valueFromElement("alphaRatio"),
+        outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
+        innerColorHSL: innerColor,
+        paths: new Float32Array(polygonsFlattened.flat()),
+        ranges: new Int32Array(ranges),
+        rangesLen: Math.floor(ranges.length / 2),
+      };
+
       for (const contourUnscaled of polygonsUnionedUnscaled) {
         const contour = contourUnscaled.map(({ x, y }) => ({ x: x / scalingFactor, y: y / scalingFactor }));
         const vertexMesh: Array<[number, number]> = [];
 
         // TODO performance optimization by doing deltas for all shapes at same time
         const steinerPoints = [];
-        for (const n of [-3, -10, -15, -30]) {
+        for (const n of [-3, -6, -10, -15, -20, -25, -30]) {
           const data: clipperLib.OffsetParams = {
             cleanDistance: 1000,
             delta: n * scalingFactor,
@@ -219,9 +234,8 @@ const animate = (time: number): void => {
         triangulation.triangulate();
         triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
 
-        const geometry = new Geometry()
-          .addAttribute("aVertexPosition", vertexMesh.flat(), 2)
-          .addAttribute("aColor", vertexMesh.map((__) => [1, 0, 0]).flat())
+        const geometry = new Geometry().addAttribute("aVertexPosition", vertexMesh.flat(), 2);
+        /*
           .addAttribute(
             "aGradient",
             triangulation
@@ -232,25 +246,11 @@ const animate = (time: number): void => {
                 [0, 0, 1],
               ])
               .flat(2)
-          );
+          ); */
 
-        const mesh = new Mesh(geometry, shaderDebug);
+        const mesh = new Mesh(geometry, gradientShaderFrom(uniforms));
         scene.addChild(mesh);
       }
-
-      const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
-      const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
-      const ranges = getRanges(polygonsFlattened).flat();
-      const uniforms = {
-        gradientLength: _.max(model.painShapes.map((p) => p.radius)) ?? 0 * 2,
-        innerColorStart: valueFromElement("colorShift"),
-        alphaFallOutEnd: valueFromElement("alphaRatio"),
-        outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
-        innerColorHSL: innerColor,
-        paths: new Float32Array(polygonsFlattened.flat()),
-        ranges: new Int32Array(ranges),
-        rangesLen: Math.floor(ranges.length / 2),
-      };
 
       for (const painShape of model.painShapes) {
         const circle = new Graphics();

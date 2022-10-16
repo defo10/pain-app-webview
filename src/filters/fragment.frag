@@ -1,7 +1,10 @@
 precision mediump float;
 
-varying vec3 vColor;
+uniform float gradientLength;
+
+varying vec2 vShortestDistVector;
 
 void main() {
-    gl_FragColor = vec4(vColor, 1.0);
+    float pct = smoothstep(0.0, gradientLength, length(vShortestDistVector));
+    gl_FragColor = vec4(pct, 0., 0., 1.);
 }
