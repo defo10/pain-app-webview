@@ -221,16 +221,6 @@ object-assign
  */
 
 /*!
- * @pixi/picture - v3.0.6
- * Compiled Tue, 26 Jul 2022 11:03:31 UTC
- *
- * @pixi/picture is licensed under the MIT License.
- * http://www.opensource.org/licenses/mit-license
- * 
- * Copyright 2017-2021, Ivan Popelyshev, All Rights Reserved
- */
-
-/*!
  * @pixi/polyfill - v6.5.5
  * Compiled Fri, 30 Sep 2022 13:37:53 UTC
  *
