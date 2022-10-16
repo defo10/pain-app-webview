@@ -6,10 +6,13 @@ import {
   autoDetectRenderer,
   Container,
   ENV,
+  Geometry,
   Graphics,
+  Mesh,
   MIPMAP_MODES,
   Point,
   settings,
+  Shader,
   Sprite,
   Texture,
   UniformGroup,
@@ -20,6 +23,7 @@ import { metaballsPaths } from "./polygon";
 import "@pixi/math-extras";
 import { GradientFilter } from "./filters/GradientFilter";
 import { Assets } from "@pixi/assets";
+import * as poly2tri from "poly2tri";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -27,6 +31,73 @@ gl.glMatrix.setMatrixArrayType(Array);
 const RESOLUTION = window.devicePixelRatio;
 
 const DOWNSCALE_FACTOR = 1.0;
+
+const shader = Shader.from(
+  `
+
+    precision mediump float;
+    attribute vec2 aVertexPosition;
+    attribute vec3 aColor;
+
+    uniform mat3 translationMatrix;
+    uniform mat3 projectionMatrix;
+
+    varying vec3 vColor;
+
+    void main() {
+
+        vColor = aColor;
+        gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
+
+    }`,
+
+  `precision mediump float;
+
+    varying vec3 vColor;
+
+    void main() {
+        gl_FragColor = vec4(vColor, 1.0);
+    }
+
+`
+);
+
+const shaderDebug = Shader.from(
+  `
+
+    precision mediump float;
+    attribute vec2 aVertexPosition;
+    attribute vec3 aColor;
+    attribute vec3 aGradient;
+
+    uniform mat3 translationMatrix;
+    uniform mat3 projectionMatrix;
+
+    varying vec3 vColor;
+    varying vec3 vGradient;
+
+    void main() {
+        vGradient = aGradient;
+        vColor = aColor;
+        gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
+
+    }`,
+
+  `precision mediump float;
+
+    varying vec3 vColor;
+    varying vec3 vGradient;
+
+    void main() {
+        float delta = 0.1;
+        if (vGradient.r < delta || vGradient.g < delta || vGradient.b < delta) {
+          gl_FragColor = vec4(0., 0., 0., 1.0);
+        }
+        //gl_FragColor = vec4(vColor, 1.0);
+    }
+
+`
+);
 
 const renderer = autoDetectRenderer({
   width: (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR,
@@ -39,141 +110,6 @@ renderer.options.powerPreference = "high-performance";
 
 settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 settings.TARGET_FPMS = 60;
-
-const FRAG_SRC = `#version 300 es
-
-precision highp float;
-
-#define TWO_PI 6.28318530718
-
-#define PATHS_MAX_LEN 300
-#define RANGES_MAX_LEN 20
-
-out vec4 outputColor;
-
-in vec2 vTextureCoord; //The coordinates of the current pixel
-uniform sampler2D uSampler; //The image data
-uniform sampler2D uBackdrop; // Backdrop texture with destination colors
-uniform vec2 uBackdrop_flipY;
-uniform vec4 inputSize;
-uniform vec4 outputFrame;
-
-uniform float gradientLength;
-uniform float innerColorStart; // the ratio with respect to gradientLength where the outer color is 100 % visible 
-uniform float alphaFallOutEnd; // the point where fading out should stop wrt distance, [0, 1]
-uniform vec3 outerColorHSL;
-uniform vec3 innerColorHSL; // HSL color spectrum
-
-uniform paths_ubo {
-  vec2 paths[PATHS_MAX_LEN];
-}; // flattened list of all paths of all polygons
-uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
-uniform int rangesLen; // exclusive, i.e. ranges[maxRangeIndex] is invalid
-
-
-// src https://www.shadertoy.com/view/XljGzV
-vec3 hsl2rgb( in vec3 c )
-{
-    vec3 rgb = clamp( abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );
-
-    return c.z + c.y * (rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
-}
-
-// src https://www.shadertoy.com/view/XljGzV
-vec3 rgb2hsl( in vec3 c ){
-  float h = 0.0;
-	float s = 0.0;
-	float l = 0.0;
-	float r = c.r;
-	float g = c.g;
-	float b = c.b;
-	float cMin = min( r, min( g, b ) );
-	float cMax = max( r, max( g, b ) );
-
-	l = ( cMax + cMin ) / 2.0;
-	if ( cMax > cMin ) {
-		float cDelta = cMax - cMin;
-        
-        //s = l < .05 ? cDelta / ( cMax + cMin ) : cDelta / ( 2.0 - ( cMax + cMin ) ); Original
-		s = l < .0 ? cDelta / ( cMax + cMin ) : cDelta / ( 2.0 - ( cMax + cMin ) );
-        
-		if ( r == cMax ) {
-			h = ( g - b ) / cDelta;
-		} else if ( g == cMax ) {
-			h = 2.0 + ( b - r ) / cDelta;
-		} else {
-			h = 4.0 + ( r - g ) / cDelta;
-		}
-
-		if ( h < 0.0) {
-			h += 6.0;
-		}
-		h = h / 6.0;
-	}
-	return vec3( h, s, l );
-}
-
-float minimum_distance(vec2 v, vec2 w, vec2 p) {
-  // Return minimum distance between line segment vw and point p
-  float l2 = pow(w.x - v.x, 2.0) + pow(w.y - v.y, 2.0);  // i.e. |w-v|^2 -  avoid a sqrt
-  // Consider the line extending the segment, parameterized as v + t (w - v).
-  // We find projection of point p onto the line. 
-  // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-  // We clamp t from [0,1] to handle points outside the segment vw.
-  float t = clamp(dot(p - v, w - v) / l2, 0., 1.);
-  vec2 projection = v + t * (w - v);  // Projection falls on the segment
-  return distance(p, projection);
-}
-
-void main(void) {
-    outputColor = texture(uSampler, vTextureCoord);
-    if (outputColor.a == 0.0) return;
-
-    vec2 backdropCoord = vec2(vTextureCoord.x, uBackdrop_flipY.x + uBackdrop_flipY.y * vTextureCoord.y);
-    vec4 backgroundColor = texture(uBackdrop, backdropCoord);
-    
-    vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
-
-    float dist = 1000000.0;
-    for (int n = 0; n < rangesLen; n++) {
-      ivec2 range = ranges[n];
-
-      for (int i = range.x; i < range.y - 1; i++) {
-        // at range.y - 1, to points to last path
-        vec2 from = paths[i];
-        vec2 to = paths[i + 1];
-        float minDist = minimum_distance(from, to, screenCoord);
-        dist = min(dist, minDist);
-      }
-
-      vec2 last = paths[range.y - 1];
-      vec2 first = paths[range.x];
-      float minDist = minimum_distance(last, first, screenCoord);
-      dist = min(dist, minDist);
-    }
-
-    float pct = smoothstep(0.0, gradientLength * innerColorStart, dist);
-    vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
-    vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
-    vec4 colorGradient = mix(outerColor, innerColor, pct);
-    
-    float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
-    outputColor = mix(backgroundColor, colorGradient, lightnessPct);
-    return;
-
-    //// Blurring ////
-    // this causes the color to blur out starting from alphaFallOutEnd % of radius
-    vec3 colorHsl = rgb2hsl(colorGradient.rgb);
-    // fading into alpha causes some weird gradients for colors like orange, that's why
-    // instead we fade to white by increasing the lightness of the HSL color -> [0.0, 1.0]
-    //float lightnessPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
-    float lightness = mix(1.0, colorHsl.z, lightnessPct);
-    vec3 colorHslLighter = vec3(colorHsl.xy, lightness);
-    //outputColor = vec4(hsl2rgb(colorHsl), lightnessPct); // without hsl lightness tweak
-    //outputColor = vec4(hsl2rgb(colorHslLighter), 1.0);
-    outputColor = mix(backgroundColor, vec4(hsl2rgb(colorHslLighter), 1.0), lightnessPct);
-}
-`;
 
 const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
@@ -258,12 +194,8 @@ const animate = (time: number): void => {
 
       scene.addChild(backgroundImage);
 
-      const graphics = new Graphics();
-      graphics.geometry.batchable = false;
-      graphics.beginFill(0x000000);
-
-      const scalingFactor = 10e8;
-      const polygonsUnioned =
+      const scalingFactor = 10e4;
+      const polygonsUnionedUnscaled =
         clipper
           .clipToPaths({
             clipType: clipperLib.ClipType.Union,
@@ -274,20 +206,57 @@ const animate = (time: number): void => {
                 data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
               }))
             ),
+            preserveCollinear: false,
           })
-          ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
-          ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor])) ?? [];
+          ?.filter((p) => clipper.orientation(p)) ?? [];
+      // ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
+      // ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor] as [number, number])) ?? [];
 
-      for (const path of polygonsUnioned) {
-        graphics.drawPolygon(
-          path.map(([x, y]) => ({
-            x,
-            y,
-          }))
-        );
+      const polygonsUnioned = polygonsUnionedUnscaled.map((p) =>
+        p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor] as [number, number])
+      );
+
+      for (const contourUnscaled of polygonsUnionedUnscaled) {
+        const contour = contourUnscaled.map(({ x, y }) => ({ x: x / scalingFactor, y: y / scalingFactor }));
+        const vertexMesh: Array<[number, number]> = [];
+
+        // TODO performance optimization by doing deltas for all shapes at same time
+        const steinerPoints = [];
+        for (const n of [-3, -15]) {
+          const data = {
+            delta: n * scalingFactor,
+            offsetInputs: [
+              {
+                joinType: clipperLib.JoinType.Miter,
+                endType: clipperLib.EndType.ClosedPolygon,
+                data: contourUnscaled,
+              },
+            ],
+          };
+          const steiner =
+            clipper
+              .offsetToPaths(data)
+              ?.filter((p) => clipper.orientation(p))
+              ?.map((p) =>
+                p.map(({ x, y }) => {
+                  return { x: x / scalingFactor, y: y / scalingFactor };
+                })
+              ) ?? [];
+          steinerPoints.push(...steiner);
+        }
+
+        const triangulation = new poly2tri.SweepContext(contour);
+        triangulation.addPoints(steinerPoints.flat());
+        triangulation.triangulate();
+        triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
+
+        const geometry = new Geometry()
+          .addAttribute("aVertexPosition", vertexMesh.flat(), 2)
+          .addAttribute("aColor", vertexMesh.map((__) => [1, 0, 0]).flat());
+
+        const mesh = new Mesh(geometry, shader);
+        scene.addChild(mesh);
       }
-
-      graphics.endFill();
 
       const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
       const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
@@ -302,11 +271,6 @@ const animate = (time: number): void => {
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
-      if (polygonsFlattened.flat().length >= 4096)
-        console.log("Too many polygons nodes! UBO Buffer size limit reached");
-
-      const brightnessShader = new GradientFilter(uniforms, RESOLUTION);
-      graphics.filters = [brightnessShader];
 
       for (const painShape of model.painShapes) {
         const circle = new Graphics();
@@ -332,11 +296,7 @@ const animate = (time: number): void => {
         scene.addChild(circle);
       }
 
-      scene.addChild(graphics);
       renderer.render(scene, { clear: true });
-      // renderer.render(scene, { clear: true });
-      scene.filters = null;
-
       requestAnimationFrame(animate);
     })
     .catch((err) => console.log(err));
