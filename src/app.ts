@@ -32,39 +32,8 @@ const RESOLUTION = window.devicePixelRatio;
 
 const DOWNSCALE_FACTOR = 1.0;
 
-const shader = Shader.from(
-  `
-
-    precision mediump float;
-    attribute vec2 aVertexPosition;
-    attribute vec3 aColor;
-
-    uniform mat3 translationMatrix;
-    uniform mat3 projectionMatrix;
-
-    varying vec3 vColor;
-
-    void main() {
-
-        vColor = aColor;
-        gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
-
-    }`,
-
-  `precision mediump float;
-
-    varying vec3 vColor;
-
-    void main() {
-        gl_FragColor = vec4(vColor, 1.0);
-    }
-
-`
-);
-
 const shaderDebug = Shader.from(
   `
-
     precision mediump float;
     attribute vec2 aVertexPosition;
     attribute vec3 aColor;
@@ -82,7 +51,6 @@ const shaderDebug = Shader.from(
         gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
 
     }`,
-
   `precision mediump float;
 
     varying vec3 vColor;
@@ -222,8 +190,9 @@ const animate = (time: number): void => {
 
         // TODO performance optimization by doing deltas for all shapes at same time
         const steinerPoints = [];
-        for (const n of [-3, -15]) {
-          const data = {
+        for (const n of [-3, -10, -15, -30]) {
+          const data: clipperLib.OffsetParams = {
+            cleanDistance: 1000,
             delta: n * scalingFactor,
             offsetInputs: [
               {
@@ -252,9 +221,20 @@ const animate = (time: number): void => {
 
         const geometry = new Geometry()
           .addAttribute("aVertexPosition", vertexMesh.flat(), 2)
-          .addAttribute("aColor", vertexMesh.map((__) => [1, 0, 0]).flat());
+          .addAttribute("aColor", vertexMesh.map((__) => [1, 0, 0]).flat())
+          .addAttribute(
+            "aGradient",
+            triangulation
+              .getTriangles()
+              .map((tri) => [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+              ])
+              .flat(2)
+          );
 
-        const mesh = new Mesh(geometry, shader);
+        const mesh = new Mesh(geometry, shaderDebug);
         scene.addChild(mesh);
       }
 
