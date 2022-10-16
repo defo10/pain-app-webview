@@ -1,13 +1,9 @@
-#version 300 es
-
 #define TWO_PI 6.28318530718
 
 precision mediump float;
 precision mediump int;
 
-out vec4 outputColor;
-
-in vec2 vTextureCoord; //The coordinates of the current pixel
+varying vec2 vTextureCoord; //The coordinates of the current pixel
 uniform sampler2D uSampler; //The image data
 uniform vec4 inputSize;
 uniform vec4 outputFrame;
@@ -69,7 +65,7 @@ vec3 rgb2hsl( in vec3 c ){
 }
 
 void main() {
-    float dist = texture(dfTexture, vTextureCoord).r;
+    float dist = texture2D(dfTexture, vTextureCoord).r;
 
     float colorPct = smoothstep(0.0, gradientLength * innerColorStart, dist);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
@@ -79,7 +75,7 @@ void main() {
     float backgroundPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, dist);
 
     vec2 backdropCoord = vec2(vTextureCoord.x, uBackdrop_flipY.x + uBackdrop_flipY.y * vTextureCoord.y);
-    vec4 backgroundColor = texture(uBackdrop, backdropCoord);
+    vec4 backgroundColor = texture2D(uBackdrop, backdropCoord);
 
-    outputColor = mix(backgroundColor, colorGradient, backgroundPct);
+    gl_FragColor = mix(backgroundColor, colorGradient, backgroundPct);
 }

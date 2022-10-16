@@ -11,7 +11,7 @@ interface GradientFilterOptions {
   alphaFallOutEnd: number;
   outerColorHSL: [number, number, number];
   innerColorHSL: [number, number, number];
-  paths_ubo: UniformGroup;
+  paths: Float32Array;
   ranges: Int32Array;
   rangesLen: number;
 }
@@ -27,7 +27,7 @@ class GradientFilter extends BackdropFilter {
       alphaFallOutEnd,
       outerColorHSL,
       innerColorHSL,
-      paths_ubo,
+      paths,
       ranges,
       rangesLen,
     }: GradientFilterOptions,
@@ -36,7 +36,7 @@ class GradientFilter extends BackdropFilter {
     super(vertex, fragment, { innerColorStart, alphaFallOutEnd, outerColorHSL, innerColorHSL });
 
     this._dfFilter = new DistanceFieldFilter({
-      paths_ubo,
+      paths,
       gradientLength,
       ranges,
       rangesLen,

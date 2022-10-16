@@ -24,8 +24,6 @@ import { Assets } from "@pixi/assets";
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
 
-settings.PREFER_ENV = ENV.WEBGL2;
-
 const RESOLUTION = window.devicePixelRatio;
 
 const DOWNSCALE_FACTOR = 1.0;
@@ -40,7 +38,7 @@ const renderer = autoDetectRenderer({
 renderer.options.powerPreference = "high-performance";
 
 settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
-settings.TARGET_FPMS = 30;
+settings.TARGET_FPMS = 60;
 
 const FRAG_SRC = `#version 300 es
 
@@ -300,13 +298,7 @@ const animate = (time: number): void => {
         alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
-        paths_ubo: new UniformGroup(
-          {
-            paths: new Float32Array(polygonsFlattened.flat()),
-          },
-          false,
-          true
-        ),
+        paths: new Float32Array(polygonsFlattened.flat()),
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
