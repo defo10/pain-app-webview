@@ -1,9 +1,10 @@
-import _ from "lodash";
+import _, { countBy } from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
 import {
   autoDetectRenderer,
+  Bounds,
   Container,
   ENV,
   Geometry,
@@ -11,6 +12,7 @@ import {
   Mesh,
   MIPMAP_MODES,
   Point,
+  Polygon,
   settings,
   Shader,
   Sprite,
@@ -25,6 +27,8 @@ import { GradientFilter } from "./filters/GradientFilter";
 import { Assets } from "@pixi/assets";
 import * as poly2tri from "poly2tri";
 import { gradientShaderFrom } from "./filters/GradientShader";
+import SkeletonBuilder, { List, Vector2d } from "straight-skeleton";
+import { bounds } from "./polygon/utils";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -141,6 +145,27 @@ const model = {
   closeness: valueFromElement("closeness"),
 };
 
+const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> => {
+  const steinerPoints = [];
+  // TODO bounding box and create grid using _.range()
+  const bb = {
+    minX: _.minBy(contour, (c) => c.x)?.x ?? 0,
+    minY: _.minBy(contour, (c) => c.y)?.y ?? 0,
+    maxX: _.maxBy(contour, (c) => c.x)?.x ?? 0,
+    maxY: _.maxBy(contour, (c) => c.y)?.y ?? 0,
+  };
+  const sampleRate = 5;
+  const polygon = new Polygon(contour);
+  for (let x = bb.minX; x <= bb.maxX; x += sampleRate) {
+    for (let y = bb.minY; y <= bb.maxY; y += sampleRate) {
+      if (polygon.contains(x, y)) {
+        steinerPoints.push({ x, y });
+      }
+    }
+  }
+  return steinerPoints;
+};
+
 // draw polygon
 const animate = (time: number): void => {
   model.painShapes.forEach((p, i) => {
@@ -201,41 +226,24 @@ const animate = (time: number): void => {
 
       for (const contourUnscaled of polygonsUnionedUnscaled) {
         const contour = contourUnscaled.map(({ x, y }) => ({ x: x / scalingFactor, y: y / scalingFactor }));
-        const vertexMesh: Array<[number, number]> = [];
 
         // TODO performance optimization by doing deltas for all shapes at same time
-        const steinerPoints = [];
-        for (const n of [-3, -6, -10, -15, -20, -25, -30]) {
-          const data: clipperLib.OffsetParams = {
-            cleanDistance: 1000,
-            delta: n * scalingFactor,
-            offsetInputs: [
-              {
-                joinType: clipperLib.JoinType.Miter,
-                endType: clipperLib.EndType.ClosedPolygon,
-                data: contourUnscaled,
-              },
-            ],
-          };
-          const steiner =
-            clipper
-              .offsetToPaths(data)
-              ?.filter((p) => clipper.orientation(p))
-              ?.map((p) =>
-                p.map(({ x, y }) => {
-                  return { x: x / scalingFactor, y: y / scalingFactor };
-                })
-              ) ?? [];
-          steinerPoints.push(...steiner);
+        const steinerPoints: Array<{ x: number; y: number }> = samplePolygon(contour);
+
+        const vertexMesh: Array<[number, number]> = [];
+        try {
+          const triangulation = new poly2tri.SweepContext(contour);
+          triangulation.addPoints(steinerPoints);
+          triangulation.triangulate();
+          triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
+        } catch (e: unknown) {
+          if (e instanceof poly2tri.PointError) {
+            // TODO dont update model from previous run once performance optimization complete
+          }
         }
 
-        const triangulation = new poly2tri.SweepContext(contour);
-        triangulation.addPoints(steinerPoints.flat());
-        triangulation.triangulate();
-        triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
-
         const geometry = new Geometry().addAttribute("aVertexPosition", vertexMesh.flat(), 2);
-        /*
+        /* debug show mesh lines
           .addAttribute(
             "aGradient",
             triangulation

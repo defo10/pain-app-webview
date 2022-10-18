@@ -1,4 +1,4 @@
-#define PATHS_MAX_LEN 400
+#define PATHS_MAX_LEN 600
 #define RANGES_MAX_LEN 20
 
 precision mediump float;
@@ -15,7 +15,7 @@ uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of
 uniform int rangesLen; // exclusive, i.e. ranges[rangesLen] is invalid
 
 varying vec2 vShortestDistVector; // vector to point with shortest distance of ranges
-
+varying float d;
 
 // Return minimum distance between line segment vw and point p
 vec2 minimum_distance_point(vec2 v, vec2 w, vec2 p) {
@@ -58,4 +58,5 @@ void main() {
     }
 
     vShortestDistVector = shortestDistanceVector;
+    d = length(shortestDistanceVector);
 }
