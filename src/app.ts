@@ -35,6 +35,8 @@ gl.glMatrix.setMatrixArrayType(Array);
 
 const RESOLUTION = window.devicePixelRatio;
 
+settings.PREFER_ENV = ENV.WEBGL2;
+settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 const DOWNSCALE_FACTOR = 1.0;
 
 const shaderDebug = Shader.from(
@@ -219,7 +221,13 @@ const animate = (time: number): void => {
         alphaFallOutEnd: valueFromElement("alphaRatio"),
         outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
         innerColorHSL: innerColor,
-        paths: new Float32Array(polygonsFlattened.flat()),
+        paths_ubo: new UniformGroup(
+          {
+            paths: new Float32Array(polygonsFlattened.flat()),
+          },
+          false,
+          true
+        ),
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
       };
