@@ -158,7 +158,7 @@ const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{ x: num
     maxX: _.maxBy(contour, (c) => c.x)?.x ?? 0,
     maxY: _.maxBy(contour, (c) => c.y)?.y ?? 0,
   };
-  const sampleRate = 5;
+  const sampleRate = 2;
   const polygon = new Polygon(contour);
   for (let x = bb.minX; x <= bb.maxX; x += sampleRate) {
     for (let y = bb.minY; y <= bb.maxY; y += sampleRate) {
@@ -271,7 +271,9 @@ const animate = (time: number): void => {
           gradientShaderFrom({
             ...uniforms,
             backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
-            bounds: new Float32Array([renderer.width, renderer.height]),
+            // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
+            // which is multiplied by the resolution to account for hidpi
+            bounds: new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]),
           })
         );
         scene.addChild(mesh);
