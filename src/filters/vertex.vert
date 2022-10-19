@@ -17,6 +17,7 @@ uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of
 uniform int rangesLen; // exclusive, i.e. ranges[rangesLen] is invalid
 
 out float d;
+out vec2 vertexPosition;
 
 // Return minimum distance between line segment vw and point p
 float minimum_distance(vec2 v, vec2 w, vec2 p) {
@@ -53,4 +54,5 @@ void main() {
     }
 
     d = dist;
+    vertexPosition = aVertexPosition;
 }

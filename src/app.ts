@@ -4,6 +4,7 @@ import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
 import {
   autoDetectRenderer,
+  BLEND_MODES,
   Bounds,
   Container,
   ENV,
@@ -13,6 +14,7 @@ import {
   MIPMAP_MODES,
   Point,
   Polygon,
+  RenderTexture,
   settings,
   Shader,
   Sprite,
@@ -264,7 +266,14 @@ const animate = (time: number): void => {
               .flat(2)
           ); */
 
-        const mesh = new Mesh(geometry, gradientShaderFrom(uniforms));
+        const mesh = new Mesh(
+          geometry,
+          gradientShaderFrom({
+            ...uniforms,
+            backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
+            bounds: new Float32Array([renderer.width, renderer.height]),
+          })
+        );
         scene.addChild(mesh);
       }
 
