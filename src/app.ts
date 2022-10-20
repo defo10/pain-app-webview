@@ -77,8 +77,6 @@ const shaderDebug = Shader.from(
 );
 
 const renderer = autoDetectRenderer({
-  width: (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR,
-  height: (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR,
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
@@ -172,6 +170,10 @@ const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{ x: num
 
 // draw polygon
 const animate = (time: number): void => {
+  const canvasWidth = (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR;
+  const canvasHeight = (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR;
+  renderer.resize(canvasWidth, canvasHeight);
+
   model.painShapes.forEach((p, i) => {
     p.radius = valueFromElement(`radius${i + 1}`);
   });
@@ -184,11 +186,11 @@ const animate = (time: number): void => {
       const scene = new Container();
 
       const backgroundImage = new Sprite(assets.headLeft);
-      const ratio = Math.min(
+      const scaleToFitRatio = Math.min(
         (renderer.width * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.width,
         (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
       );
-      backgroundImage.scale.x = backgroundImage.scale.y = ratio;
+      backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
 
       scene.addChild(backgroundImage);
 
@@ -232,6 +234,11 @@ const animate = (time: number): void => {
         ),
         ranges: new Int32Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
+        backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
+        // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
+        // which is multiplied by the resolution to account for hidpi
+        textureBounds: new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]),
+        rendererBounds: new Float32Array([renderer.width, renderer.height]),
       };
 
       for (const contourUnscaled of polygonsUnionedUnscaled) {
@@ -266,16 +273,7 @@ const animate = (time: number): void => {
               .flat(2)
           ); */
 
-        const mesh = new Mesh(
-          geometry,
-          gradientShaderFrom({
-            ...uniforms,
-            backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
-            // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
-            // which is multiplied by the resolution to account for hidpi
-            bounds: new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]),
-          })
-        );
+        const mesh = new Mesh(geometry, gradientShaderFrom(uniforms));
         scene.addChild(mesh);
       }
 

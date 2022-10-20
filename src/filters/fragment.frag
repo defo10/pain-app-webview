@@ -2,13 +2,15 @@
 
 precision mediump float;
 
-uniform vec2 bounds; // [renderer width, renderer height]
 uniform float gradientLength;
 uniform float innerColorStart; // the ratio with respect to gradientLength where the outer color is 100 % visible 
 uniform float alphaFallOutEnd; // the point where fading out should stop wrt gradient length, [0, 1]
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
+uniform vec2 rendererBounds; // [renderer width, renderer height]
+
+uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
 uniform sampler2D backgroundTexture;
 
 in float d;
@@ -59,13 +61,12 @@ vec3 rgb2hsl( in vec3 c ){
 }
 
 void main() {
-    //float pct = smoothstep(0.0, gradientLength, length(vShortestDistVector));
     float pct = smoothstep(0.0, gradientLength, d);
 
-    //outputColor = vec4(1, 0., 0., pct);
-    vec2 normalizedSceenCoord = gl_FragCoord.xy / bounds;
-    vec2 backdropFlipY = vec2(normalizedSceenCoord.x, 1.0 - normalizedSceenCoord.y);
-    vec4 backgroundColor = texture(backgroundTexture, backdropFlipY);
+	float yBottomOffset = rendererBounds.y - textureBounds.y;
+	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
+	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
+    vec4 backgroundColor = (normalizedYCoord < 0.0) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
 
     float colorPct = smoothstep(0.0, gradientLength * innerColorStart, d);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
