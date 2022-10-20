@@ -90,7 +90,7 @@ const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
 
-Assets.addBundle("body", { headLeft: "./assets/head.png" });
+Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
 const assets = Assets.loadBundle("body");
 
 const valueFromElement = (id: string): number => parseFloat((document.getElementById(id) as HTMLInputElement).value);

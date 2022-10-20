@@ -63,17 +63,21 @@ vec3 rgb2hsl( in vec3 c ){
 void main() {
     float pct = smoothstep(0.0, gradientLength, d);
 
-	float yBottomOffset = rendererBounds.y - textureBounds.y;
-	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
-	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
-    vec4 backgroundColor = (normalizedYCoord < 0.0) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
-
     float colorPct = smoothstep(0.0, gradientLength * innerColorStart, d);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(outerColor, innerColor, colorPct);
     
+	// 0 means background only, 1 means background not shining thorugh
     float backgroundPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, d);
+
+	float yBottomOffset = rendererBounds.y - textureBounds.y;
+	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
+	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
+	bool isBelowPic = normalizedYCoord < 0.0;
+	// don't draw render texture if background not visible anyway
+	bool noBackgroundVisible = backgroundPct == 1.0;
+    vec4 backgroundColor = (isBelowPic || noBackgroundVisible) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
 
     outputColor = mix(backgroundColor, colorGradient, backgroundPct);
 }
