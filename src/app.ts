@@ -14,6 +14,7 @@ import {
   MIPMAP_MODES,
   Point,
   Polygon,
+  PRECISION,
   RenderTexture,
   settings,
   Shader,
@@ -40,6 +41,8 @@ const RESOLUTION = window.devicePixelRatio;
 settings.PREFER_ENV = ENV.WEBGL2;
 settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 const DOWNSCALE_FACTOR = 1.0;
+settings.PRECISION_FRAGMENT = PRECISION.LOW;
+settings.PRECISION_VERTEX = PRECISION.LOW;
 
 const shaderDebug = Shader.from(
   `
@@ -81,7 +84,6 @@ const renderer = autoDetectRenderer({
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
 });
-renderer.options.powerPreference = "high-performance";
 
 settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 settings.TARGET_FPMS = 60;
@@ -232,7 +234,7 @@ const animate = (time: number): void => {
           false,
           true
         ),
-        ranges: new Int32Array(ranges),
+        ranges: new Int16Array(ranges),
         rangesLen: Math.floor(ranges.length / 2),
         backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
         // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas

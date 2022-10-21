@@ -1,6 +1,9 @@
 #version 300 es
 
-precision mediump float;
+precision lowp float;
+precision lowp int;
+
+layout(std140) uniform;
 
 uniform float gradientLength;
 uniform float innerColorStart; // the ratio with respect to gradientLength where the outer color is 100 % visible 

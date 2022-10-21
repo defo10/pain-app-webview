@@ -1,9 +1,12 @@
 #version 300 es
 
-#define PATHS_MAX_LEN 600
+#define PATHS_MAX_LEN 200
 #define RANGES_MAX_LEN 20
 
-precision mediump float;
+layout(std140) uniform;
+
+precision lowp float;
+precision lowp int;
 
 in vec2 aVertexPosition;
 
