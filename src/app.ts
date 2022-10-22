@@ -15,7 +15,7 @@ import {
   PRECISION,
   RenderTexture,
   settings,
-  Shader,
+  Buffer,
   Sprite,
   Texture,
   UniformGroup,
@@ -100,6 +100,9 @@ const updatedModel = (oldModel?: Model): Model => {
 
 let model: Model = updatedModel();
 let geometry: undefined | GeometryViewModel;
+const ubo = UniformGroup.uboFrom({
+  paths: [],
+});
 const shader = gradientShaderFrom({
   backgroundTexture: null,
   // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
@@ -111,9 +114,7 @@ const shader = gradientShaderFrom({
   alphaFallOutEnd: 0,
   outerColorHSL: [0, 0, 0],
   innerColorHSL: [0, 0, 0],
-  paths_ubo: UniformGroup.uboFrom({
-    paths: [],
-  }),
+  paths_ubo: ubo,
   ranges: new Int16Array([0, 1]),
   rangesLen: 1,
 });
@@ -121,7 +122,6 @@ const shader = gradientShaderFrom({
 const scene = new Container();
 let staleMeshes: Container;
 let clipper: clipperLib.ClipperLibWrapper | undefined;
-let assets: { headLeft: Texture } | undefined;
 
 const init = async (): Promise<void> => {
   const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }] = await Promise.all([
@@ -129,7 +129,6 @@ const init = async (): Promise<void> => {
     assetsPromise,
   ]);
   clipper = clipperResolved;
-  assets = assetsResolved;
 
   const canvasWidth = (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR;
   const canvasHeight = (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR;
@@ -168,10 +167,10 @@ const animate = (time: number): void => {
   if (geometry.wasUpdated) {
     const polygons = geometry.polygons;
     const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
-    debugger;
-    shader.uniforms.paths_ubo = UniformGroup.uboFrom({
-      paths: polygons.flat(2),
-    });
+
+    ubo.uniforms.paths = polygons.flat(2);
+    ubo.update();
+
     shader.uniforms.ranges = new Int16Array(ranges);
     shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
   }
