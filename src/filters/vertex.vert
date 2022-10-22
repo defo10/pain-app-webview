@@ -1,9 +1,7 @@
 #version 300 es
 
-#define PATHS_MAX_LEN 200
+#define PATHS_MAX_LEN 400
 #define RANGES_MAX_LEN 20
-
-layout(std140) uniform;
 
 precision lowp float;
 precision lowp int;

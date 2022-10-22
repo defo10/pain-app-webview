@@ -1,19 +1,16 @@
-import _, { countBy } from "lodash";
+/* eslint-disable @typescript-eslint/strict-boolean-expressions */
+import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
 import {
   autoDetectRenderer,
-  BLEND_MODES,
-  Bounds,
   Container,
   ENV,
-  Geometry,
   Graphics,
   Mesh,
   MIPMAP_MODES,
   Point,
-  Polygon,
   PRECISION,
   RenderTexture,
   settings,
@@ -26,12 +23,11 @@ import { metaballsPaths } from "./polygon";
 
 // extending vanilla pixi
 import "@pixi/math-extras";
-import { GradientFilter } from "./filters/GradientFilter";
 import { Assets } from "@pixi/assets";
-import * as poly2tri from "poly2tri";
-import { gradientShaderFrom } from "./filters/GradientShader";
-import SkeletonBuilder, { List, Vector2d } from "straight-skeleton";
-import { bounds } from "./polygon/utils";
+import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
+import { GeometryViewModel } from "./viewmodel";
+import { Model } from "./model";
+import { gradientShaderFrom, GradientProgram } from "./filters/GradientShader";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -43,41 +39,7 @@ settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 const DOWNSCALE_FACTOR = 1.0;
 settings.PRECISION_FRAGMENT = PRECISION.LOW;
 settings.PRECISION_VERTEX = PRECISION.LOW;
-
-const shaderDebug = Shader.from(
-  `
-    precision mediump float;
-    attribute vec2 aVertexPosition;
-    attribute vec3 aColor;
-    attribute vec3 aGradient;
-
-    uniform mat3 translationMatrix;
-    uniform mat3 projectionMatrix;
-
-    varying vec3 vColor;
-    varying vec3 vGradient;
-
-    void main() {
-        vGradient = aGradient;
-        vColor = aColor;
-        gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
-
-    }`,
-  `precision mediump float;
-
-    varying vec3 vColor;
-    varying vec3 vGradient;
-
-    void main() {
-        float delta = 0.1;
-        if (vGradient.r < delta || vGradient.g < delta || vGradient.b < delta) {
-          gl_FragColor = vec4(0., 0., 0., 1.0);
-        }
-        //gl_FragColor = vec4(vColor, 1.0);
-    }
-
-`
-);
+settings.TARGET_FPMS = 60;
 
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
@@ -85,44 +47,12 @@ const renderer = autoDetectRenderer({
   backgroundColor: 0xffffff,
 });
 
-settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
-settings.TARGET_FPMS = 60;
-
-const clipper = clipperLib.loadNativeClipperLibInstanceAsync(
+// async inits
+const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
-
 Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
-const assets = Assets.loadBundle("body");
-
-const valueFromElement = (id: string): number => parseFloat((document.getElementById(id) as HTMLInputElement).value);
-/** returns HSL! */
-const outerColorPicker = (colorCode: string): [number, number, number] | null => {
-  switch (colorCode) {
-    case "yellow":
-      return [55 / 360, 1.0, 0.5];
-    case "orange":
-      return [38 / 360, 1.0, 0.5];
-    case "red":
-      return [0.0, 1.0, 0.5];
-    default:
-      return null;
-  }
-};
-
-/** returns HSL! */
-const innerColorPicker = (colorCode: string, lightness: number): [number, number, number] => {
-  switch (colorCode) {
-    case "yellow":
-      return [55 / 360, 1.0, lightness];
-    case "blue":
-      return [241 / 360, 1.0, lightness];
-    default: // red
-      return [0, 1.0, lightness];
-  }
-};
-const checkedRadioBtn = (name: string): string =>
-  (document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement)?.value;
+const assetsPromise = Assets.loadBundle("body");
 
 const getRanges = (arr: number[][]): number[] => {
   const ranges: number[] = [];
@@ -138,191 +68,166 @@ const getRanges = (arr: number[][]): number[] => {
   return ranges;
 };
 
-const model = {
-  considerConnectedLowerBound: 0.75,
-  gravitationForceVisibleLowerBound: 0.5,
-  painShapes: [
-    new PainShape(new Point(120, 90), valueFromElement("radius1")),
-    new PainShape(new Point(170, 120), valueFromElement("radius2")),
-    new PainShape(new Point(140, 200), valueFromElement("radius3")),
-  ],
-  closeness: valueFromElement("closeness"),
-};
-
-const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> => {
-  const steinerPoints = [];
-  // TODO bounding box and create grid using _.range()
-  const bb = {
-    minX: _.minBy(contour, (c) => c.x)?.x ?? 0,
-    minY: _.minBy(contour, (c) => c.y)?.y ?? 0,
-    maxX: _.maxBy(contour, (c) => c.x)?.x ?? 0,
-    maxY: _.maxBy(contour, (c) => c.y)?.y ?? 0,
+const updatedModel = (oldModel?: Model): Model => {
+  const painShapes = oldModel?.shapeParams.painShapes.map((p, i) => {
+    const painShape = new PainShape(p.position, valueFromSlider(`radius${i + 1}`));
+    return painShape;
+  }) ?? [
+    new PainShape(new Point(120, 90), valueFromSlider("radius1")),
+    new PainShape(new Point(170, 120), valueFromSlider("radius2")),
+    new PainShape(new Point(140, 200), valueFromSlider("radius3")),
+  ];
+  return {
+    shapeParams: {
+      considerConnectedLowerBound: 0.75,
+      gravitationForceVisibleLowerBound: 0.5,
+      painShapes,
+      painShapesDragging: oldModel?.shapeParams.painShapesDragging ?? [false, false, false],
+      closeness: valueFromSlider("closeness"),
+    },
+    dissolve: valueFromSlider("dissolve"),
+    coloringParams: {
+      innerColorStart: valueFromSlider("colorShift"),
+      alphaFallOutEnd: valueFromSlider("alphaRatio"),
+      innerColorHSL: innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
+      outerColorHSL:
+        outerColorPicker(checkedRadioBtn("outerColor")) ??
+        innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
+    },
   };
-  const sampleRate = 2;
-  const polygon = new Polygon(contour);
-  for (let x = bb.minX; x <= bb.maxX; x += sampleRate) {
-    for (let y = bb.minY; y <= bb.maxY; y += sampleRate) {
-      if (polygon.contains(x, y)) {
-        steinerPoints.push({ x, y });
-      }
-    }
-  }
-  return steinerPoints;
 };
 
-// draw polygon
-const animate = (time: number): void => {
+let model: Model = updatedModel();
+let geometry: undefined | GeometryViewModel;
+
+const scene = new Container();
+let staleMeshes: Container;
+let clipper: clipperLib.ClipperLibWrapper | undefined;
+let assets: { headLeft: Texture } | undefined;
+
+let backgroundTexture: Texture<any> | undefined;
+let textureBounds: Float32Array | undefined;
+let rendererBounds: Float32Array | undefined;
+
+const init = async (): Promise<void> => {
+  const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }] = await Promise.all([
+    clipperPromise,
+    assetsPromise,
+  ]);
+  clipper = clipperResolved;
+  assets = assetsResolved;
+
   const canvasWidth = (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR;
   const canvasHeight = (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR;
   renderer.resize(canvasWidth, canvasHeight);
 
-  model.painShapes.forEach((p, i) => {
-    p.radius = valueFromElement(`radius${i + 1}`);
-  });
-  model.closeness = valueFromElement("closeness");
-  model.dissolve = valueFromElement("dissolve");
+  // add bg image
+  const backgroundImage = new Sprite(assetsResolved.headLeft);
+  const scaleToFitRatio = Math.min(
+    (renderer.width * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.width,
+    (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
+  );
+  backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
+  scene.addChild(backgroundImage);
 
-  Promise.all([clipper, assets])
-    .then(([clipper, assets]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }]) => {
-      const { paths } = metaballsPaths(clipper, model);
+  backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
+  // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
+  // which is multiplied by the resolution to account for hidpi
+  textureBounds = new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]);
+  rendererBounds = new Float32Array([renderer.width, renderer.height]);
 
-      const scene = new Container();
-
-      const backgroundImage = new Sprite(assets.headLeft);
-      const scaleToFitRatio = Math.min(
-        (renderer.width * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.width,
-        (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
-      );
-      backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
-
-      scene.addChild(backgroundImage);
-
-      const scalingFactor = 10e4;
-      const polygonsUnionedUnscaled =
-        clipper
-          .clipToPaths({
-            clipType: clipperLib.ClipType.Union,
-            subjectFillType: clipperLib.PolyFillType.NonZero,
-            subjectInputs: [...paths.entries()].flatMap(([_, polygons]) =>
-              polygons.map((p) => ({
-                closed: true,
-                data: p.map(({ x, y }) => ({ x: Math.round(x * scalingFactor), y: Math.round(y * scalingFactor) })),
-              }))
-            ),
-            preserveCollinear: false,
-          })
-          ?.filter((p) => clipper.orientation(p)) ?? []; // filter out all holes, TODO consider area too
-
-      // todo create shapes inside
-
-      polygonsUnionedUnscaled =
-        clipper
-          .offsetToPaths({
-            delta: -scalingFactor * 20 * model.dissolve,
-            offsetInputs: polygonsUnionedUnscaled.map((path) => {
-              return {
-                joinType: clipperLib.JoinType.Square,
-                endType: clipperLib.EndType.ClosedPolygon,
-                data: path,
-              };
-            }),
-          })
-          ?.filter((p) => clipper.orientation(p)) ?? [];
-      // ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
-      // ?.map((p) => p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor] as [number, number])) ?? [];
-
-      const polygonsUnioned = polygonsUnionedUnscaled.map((p) =>
-        p.map(({ x, y }) => [x / scalingFactor, y / scalingFactor] as [number, number])
-      );
-
-      const innerColor = innerColorPicker(checkedRadioBtn("innerColor"), valueFromElement("lightness"));
-      const polygonsFlattened = polygonsUnioned.map((path) => path.flat());
-      const ranges = getRanges(polygonsFlattened).flat();
-      const uniforms = {
-        gradientLength: _.max(model.painShapes.map((p) => p.radius)) ?? 0 * 2,
-        innerColorStart: valueFromElement("colorShift"),
-        alphaFallOutEnd: valueFromElement("alphaRatio"),
-        outerColorHSL: outerColorPicker(checkedRadioBtn("outerColor")) ?? innerColor,
-        innerColorHSL: innerColor,
-        paths_ubo: new UniformGroup(
-          {
-            paths: new Float32Array(polygonsFlattened.flat()),
-          },
-          false,
-          true
-        ),
-        ranges: new Int16Array(ranges),
-        rangesLen: Math.floor(ranges.length / 2),
-        backgroundTexture: RenderTexture.from(backgroundImage.texture.baseTexture),
-        // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
-        // which is multiplied by the resolution to account for hidpi
-        textureBounds: new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]),
-        rendererBounds: new Float32Array([renderer.width, renderer.height]),
-      };
-
-      for (const contourUnscaled of polygonsUnionedUnscaled) {
-        const contour = contourUnscaled.map(({ x, y }) => ({ x: x / scalingFactor, y: y / scalingFactor }));
-
-        // TODO performance optimization by doing deltas for all shapes at same time
-        const steinerPoints: Array<{ x: number; y: number }> = samplePolygon(contour);
-
-        const vertexMesh: Array<[number, number]> = [];
-        try {
-          const triangulation = new poly2tri.SweepContext(contour);
-          triangulation.addPoints(steinerPoints);
-          triangulation.triangulate();
-          triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
-        } catch (e: unknown) {
-          if (e instanceof poly2tri.PointError) {
-            // TODO dont update model from previous run once performance optimization complete
-          }
-        }
-
-        const geometry = new Geometry().addAttribute("aVertexPosition", vertexMesh.flat(), 2);
-        /* debug show mesh lines
-          .addAttribute(
-            "aGradient",
-            triangulation
-              .getTriangles()
-              .map((tri) => [
-                [1, 0, 0],
-                [0, 1, 0],
-                [0, 0, 1],
-              ])
-              .flat(2)
-          ); */
-
-        const mesh = new Mesh(geometry, gradientShaderFrom(uniforms));
-        scene.addChild(mesh);
-      }
-
-      for (const painShape of model.painShapes) {
-        const circle = new Graphics();
-        circle.beginFill(0xffffff, 0.00001);
-        circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
-        circle.endFill();
-        circle.interactive = true;
-        circle.buttonMode = true;
-        circle.on("pointerdown", (e) => {
-          painShape.dragging = true;
-        });
-        circle.on("pointermove", (e) => {
-          if (painShape.dragging ?? false) {
-            painShape.position.x = e.data.global.x;
-            painShape.position.y = e.data.global.y;
-          }
-        });
-        circle.on("pointerup", (e) => {
-          painShape.position.x = e.data.global.x;
-          painShape.position.y = e.data.global.y;
-          painShape.dragging = false;
-        });
-        scene.addChild(circle);
-      }
-
-      renderer.render(scene, { clear: true });
-      requestAnimationFrame(animate);
-    })
-    .catch((err) => console.log(err));
+  animate(performance.now());
 };
-animate(performance.now());
+
+const animate = (time: number): void => {
+  model = updatedModel(model);
+
+  if (geometry) {
+    geometry.updateModel(model.shapeParams, model.dissolve);
+  } else {
+    geometry = new GeometryViewModel(model.shapeParams, model.dissolve, clipper!);
+  }
+
+  const shader = new Shader(GradientProgram, {
+    backgroundTexture,
+    // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
+    // which is multiplied by the resolution to account for hidpi
+    textureBounds,
+    rendererBounds,
+    gradientLength: 0,
+    innerColorStart: 0,
+    alphaFallOutEnd: 0,
+    outerColorHSL: [0, 0, 0],
+    innerColorHSL: [0, 0, 0],
+    paths_ubo: UniformGroup.uboFrom({
+      paths: [],
+    }),
+    ranges: new Int16Array([0, 1]),
+    rangesLen: 1,
+  });
+
+  if (geometry.wasUpdated) {
+    const polygons = geometry.polygons;
+    const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
+    shader.uniforms.paths_ubo = UniformGroup.uboFrom({
+      paths: polygons.flat(2),
+    });
+    shader.uniforms.ranges = new Int16Array(ranges);
+    shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
+  }
+
+  const gradientLength = _.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0 * 2;
+  if (shader.uniforms.gradientLength !== gradientLength) shader.uniforms.gradientLength = gradientLength;
+
+  if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
+    shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
+
+  if (shader.uniforms.alphaFallOutEnd !== model.coloringParams.alphaFallOutEnd)
+    shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
+
+  if (!_.isEqual(shader.uniforms.outerColorHSL, model.coloringParams.outerColorHSL))
+    shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
+
+  if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
+    shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+
+  const meshes = new Container();
+
+  geometry.geometry.forEach((geo) => meshes.addChild(new Mesh(geo, shader)));
+  if (staleMeshes) {
+    scene.removeChild(staleMeshes);
+  }
+  scene.addChild(meshes);
+  staleMeshes = meshes;
+
+  for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
+    const painShape = model.shapeParams.painShapes[i];
+    const circle = new Graphics();
+    circle.beginFill(0xffffff, 0.00001);
+    circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
+    circle.endFill();
+    circle.interactive = true;
+    circle.buttonMode = true;
+    circle.on("pointerdown", (e) => {
+      model.shapeParams.painShapesDragging[i] = true;
+    });
+    circle.on("pointermove", (e) => {
+      if (model.shapeParams.painShapesDragging[i]) {
+        painShape.position.x = e.data.global.x;
+        painShape.position.y = e.data.global.y;
+      }
+    });
+    circle.on("pointerup", (e) => {
+      painShape.position.x = e.data.global.x;
+      painShape.position.y = e.data.global.y;
+      model.shapeParams.painShapesDragging[i] = false;
+    });
+    meshes.addChild(circle);
+  }
+
+  renderer.render(scene);
+  requestAnimationFrame(animate);
+};
+
+// eslint-disable-next-line @typescript-eslint/no-floating-promises
+init();

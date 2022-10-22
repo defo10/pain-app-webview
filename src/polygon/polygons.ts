@@ -1,19 +1,15 @@
-import { PainShape } from "../pain_shape";
 import _ from "lodash";
 import * as gl from "gl-matrix";
 import { bounds, clamp, lerpPoints } from "./utils";
-import { Point } from "pixi.js";
+import { Point, Polygon as PixiPolygon } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
 import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 
-const lerp = require("interpolation").lerp;
-const smoothstep = require("interpolation").smoothstep;
-
-export type Polygon = Point[];
+export type SimplePolygon = Point[];
 
 /** returns polygon of a circle around @param center with @param radius */
-export const circlePolygon = (center: Point, radius: number): Polygon => {
+export const circlePolygon = (center: Point, radius: number): SimplePolygon => {
   const circlePaths = [];
   for (let i = 0; i < 2 * Math.PI; i = i + 0.15) {
     circlePaths.push(new Point(center.x + Math.cos(i) * radius, center.y + Math.sin(i) * radius));
@@ -41,7 +37,7 @@ export function gravitationPolygon(
   radius2: number,
   connectionStrength = 1.0,
   inwardShift = 0.5
-): Polygon {
+): SimplePolygon {
   const mid = calcMidpoint(center1, radius1, center2, radius2);
 
   const { p1, p2 } = bounds(radius1, radius2, center1, center2, inwardShift);
@@ -71,10 +67,9 @@ export function overlapClosing(
   center1: readonly [number, number],
   center2: readonly [number, number],
   t = 1.0
-): Polygon {
+): SimplePolygon {
   const { p1, p2, p3, p4 } = bounds(radius1, radius2, center1, center2, 1.0);
 
-  debugger;
   const [first, second] = intersections(
     new Circle(new EuclidPoint(...center1), radius1),
     new Circle(new EuclidPoint(...center2), radius2)
@@ -94,7 +89,7 @@ export function overlapClosing(
 
   const interpolateP1P3 = new CurveInterpolator([p1, [midPoint1.x, midPoint2.y], p3], { tension: 0.0 });
   const interpolateP2P4 = new CurveInterpolator([p4, [midPoint1.x, midPoint2.y], p2], { tension: 0.0 });
-  const polygon: Polygon = [
+  const polygon: SimplePolygon = [
     p1,
     ...(interpolateP1P3.getPoints(10) as Array<[number, number]>),
     p3,
@@ -104,9 +99,29 @@ export function overlapClosing(
   ]
     .map(([x, y]) => new Point(x, y))
     .reverse();
-  debugger;
   return polygon;
 }
+
+export const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> => {
+  const steinerPoints = [];
+  // TODO bounding box and create grid using _.range()
+  const bb = {
+    minX: _.minBy(contour, (c) => c.x)?.x ?? 0,
+    minY: _.minBy(contour, (c) => c.y)?.y ?? 0,
+    maxX: _.maxBy(contour, (c) => c.x)?.x ?? 0,
+    maxY: _.maxBy(contour, (c) => c.y)?.y ?? 0,
+  };
+  const sampleRate = 2;
+  const polygon = new PixiPolygon(contour);
+  for (let x = bb.minX; x <= bb.maxX; x += sampleRate) {
+    for (let y = bb.minY; y <= bb.maxY; y += sampleRate) {
+      if (polygon.contains(x, y)) {
+        steinerPoints.push({ x, y });
+      }
+    }
+  }
+  return steinerPoints;
+};
 
 export function polyon2starshape(contour: Array<[number, number]>): Array<[number, number]> {
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));

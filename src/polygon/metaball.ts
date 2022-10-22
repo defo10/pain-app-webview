@@ -1,18 +1,17 @@
 import * as gl from "gl-matrix";
 import _ from "lodash";
-import { angle, bounds, clamp, dist, getVector, insideCircle } from "./utils";
+import { bounds, clamp, insideCircle } from "./utils";
 import { DistanceMatrix } from "../distance_matrix";
 import { Connection } from "../gravitating_shapes";
 import { PainShape } from "../pain_shape";
 import Queue from "denque";
 import * as clipperLib from "js-angusj-clipper";
 import { metaball as metaballConnection } from "./metaball";
-import { circlePolygon, Polygon, gravitationPolygon } from "../polygon";
-import { autoDetectRenderer, Filter, filters, Framebuffer, Graphics, Point } from "pixi.js";
+import { circlePolygon, SimplePolygon, gravitationPolygon } from "../polygon";
+import { Point } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
-import { Circle, Line, intersections, Point as EuclidPoint, GeoShape } from "@mathigon/euclid";
-import { calcMidpoint, overlapClosing } from "./polygons";
+import { calcMidpoint } from "./polygons";
 
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
@@ -24,18 +23,18 @@ interface SkeletonNode {
 
 export function metaballsPaths(
   clipper: clipperLib.ClipperLibWrapper,
+  painShapes: PainShape[],
   pm: {
     considerConnectedLowerBound: number;
     gravitationForceVisibleLowerBound: number;
-    painShapes: PainShape[];
     closeness: number;
   }
-): { paths: Map<PainShape, Polygon[]>; skeletonGraph: Array<Connection<SkeletonNode>> } {
-  const distanceMatrix = new DistanceMatrix<PainShape>(pm.painShapes, PainShape.dist);
+): { paths: Map<PainShape, SimplePolygon[]>; skeletonGraph: Array<Connection<SkeletonNode>> } {
+  const distanceMatrix = new DistanceMatrix<PainShape>(painShapes, PainShape.dist);
   // we want to find to find all radiusExtendFactors for all distances, thus
   // "dist = radiusExtendFactor * (a.radius + b.radius)" => "radiusExtendFactor = dist / (a.radius + b.radius)"
   const radiusExtendFactorMatrix = new DistanceMatrix<PainShape>(
-    pm.painShapes,
+    painShapes,
     (a, b) => distanceMatrix.between(a, b)! / (a.radius + b.radius)
   );
   // we want that each node is connected to at least one other node (one graph in total) at the highest connectivity
@@ -43,15 +42,15 @@ export function metaballsPaths(
   // the smallest one of those
   // biggestRadiusExtendOfSmallest gives the factor to multiply the radius with such that each node is at least
   // connected to one other node
-  const biggestRadiusExtendOfSmallest = _.max(pm.painShapes.map((p) => radiusExtendFactorMatrix.nn(p)!.distance))!;
+  const biggestRadiusExtendOfSmallest = _.max(painShapes.map((p) => radiusExtendFactorMatrix.nn(p)!.distance))!;
   // smallestRadiusExtend gives the factor to multiply the radius with such that no two nodes are connected
   // (the smallest radiusExtend * the lower bound ratio)
   const smallestRadiusExtend =
-    _.min(pm.painShapes.map((p) => radiusExtendFactorMatrix.nn(p)!.distance))! * pm.gravitationForceVisibleLowerBound;
+    _.min(painShapes.map((p) => radiusExtendFactorMatrix.nn(p)!.distance))! * pm.gravitationForceVisibleLowerBound;
   const radiusExtendFactor = lerp(smallestRadiusExtend, biggestRadiusExtendOfSmallest, pm.closeness);
 
   const representativeMap = new Map<PainShape, PainShape>();
-  const pathsMap = new Map<PainShape, Polygon[]>();
+  const pathsMap = new Map<PainShape, SimplePolygon[]>();
   const gravitatingShapes = new Set<Connection<PainShape>>();
   const hasVisited = (node: PainShape) => representativeMap.has(node);
 
@@ -59,7 +58,7 @@ export function metaballsPaths(
   // to calculate gradients, which has form [x1, y1, radius1, x2, y2, radius2]
   const skeletonGraph: Array<Connection<SkeletonNode>> = [];
 
-  for (const node of pm.painShapes) {
+  for (const node of painShapes) {
     if (hasVisited(node)) continue;
 
     const nodesToVisit = new Queue<PainShape>();
@@ -168,7 +167,7 @@ export function metaball(
   center2: readonly [number, number],
   v = 0.5,
   t = 1.0
-): Polygon {
+): SimplePolygon {
   const { p1, p2, p3, p4 } = bounds(radius1, radius2, center1, center2, v);
   const lowerBound = 0.15;
 
@@ -196,7 +195,7 @@ export function metaball(
   );
   const interpolateP1P3 = new CurveInterpolator([p1, midpointToMidpointOnP1P3 as number[], p3], { tension: 0.0 });
   const interpolateP2P4 = new CurveInterpolator([p4, midpointToMidpointOnP2P4 as number[], p2], { tension: 0.0 });
-  const polygon: Polygon = [
+  const polygon: SimplePolygon = [
     p1,
     ...(interpolateP1P3.getPoints(10) as Array<[number, number]>),
     p3,

@@ -8,6 +8,8 @@ export class PainShape {
   position: Point;
   radius: number;
   dragging: boolean | undefined;
+  hasChanged: boolean | undefined;
+  resizing: boolean | undefined;
 
   constructor(position: Point, radius: number) {
     this.position = position;

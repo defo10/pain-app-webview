@@ -1,15 +1,16 @@
 import * as gl from "gl-matrix";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const lerp = require("interpolation").lerp;
 
 export function lerpPoints([x1, y1]: [number, number], [x2, y2]: [number, number], t: number): [number, number] {
   return [lerp(x1, x2, t), lerp(y1, y2, t)];
 }
 
-export function dist([x1, y1]: readonly [number, number], [x2, y2]: readonly [number, number]) {
+export function dist([x1, y1]: readonly [number, number], [x2, y2]: readonly [number, number]): number {
   return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5;
 }
 
-export function angle([x1, y1]: readonly [number, number], [x2, y2]: readonly [number, number]) {
+export function angle([x1, y1]: readonly [number, number], [x2, y2]: readonly [number, number]): number {
   return Math.atan2(y1 - y2, x1 - x2);
 }
 
@@ -53,7 +54,6 @@ export function bounds(
   p3: readonly [number, number];
   p4: readonly [number, number];
 } {
-  const HALF_PI = Math.PI / 2;
   const d = dist(center1, center2);
   let u1, u2;
 
