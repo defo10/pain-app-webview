@@ -5,7 +5,7 @@ import { bounds, clamp, lerpPoints } from "./utils";
 import { Point } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
-import { Circle, intersections, Line, Point as EuclidPoint } from "@mathigon/euclid";
+import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
@@ -106,4 +106,11 @@ export function overlapClosing(
     .reverse();
   debugger;
   return polygon;
+}
+
+export function polyon2starshape(contour: Array<[number, number]>): Array<[number, number]> {
+  const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
+  const cirumference = polygon.circumference;
+  for (let i = 0.0; i <= 1.0; i += cirumference / 10) {}
+  return [];
 }

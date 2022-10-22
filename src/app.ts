@@ -180,6 +180,7 @@ const animate = (time: number): void => {
     p.radius = valueFromElement(`radius${i + 1}`);
   });
   model.closeness = valueFromElement("closeness");
+  model.dissolve = valueFromElement("dissolve");
 
   Promise.all([clipper, assets])
     .then(([clipper, assets]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }]) => {
@@ -209,6 +210,22 @@ const animate = (time: number): void => {
               }))
             ),
             preserveCollinear: false,
+          })
+          ?.filter((p) => clipper.orientation(p)) ?? []; // filter out all holes, TODO consider area too
+
+      // todo create shapes inside
+
+      polygonsUnionedUnscaled =
+        clipper
+          .offsetToPaths({
+            delta: -scalingFactor * 20 * model.dissolve,
+            offsetInputs: polygonsUnionedUnscaled.map((path) => {
+              return {
+                joinType: clipperLib.JoinType.Square,
+                endType: clipperLib.EndType.ClosedPolygon,
+                data: path,
+              };
+            }),
           })
           ?.filter((p) => clipper.orientation(p)) ?? [];
       // ?.filter((p) => clipper.orientation(p)) // filter out all holes, TODO consider area too
