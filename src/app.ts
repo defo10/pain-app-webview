@@ -7,6 +7,7 @@ import {
   autoDetectRenderer,
   Container,
   ENV,
+  generateUniformBufferSync,
   Graphics,
   Mesh,
   MIPMAP_MODES,
@@ -27,7 +28,7 @@ import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
-import { gradientShaderFrom, GradientProgram } from "./filters/GradientShader";
+import { gradientShaderFrom } from "./filters/GradientShader";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -99,15 +100,28 @@ const updatedModel = (oldModel?: Model): Model => {
 
 let model: Model = updatedModel();
 let geometry: undefined | GeometryViewModel;
+const shader = gradientShaderFrom({
+  backgroundTexture: null,
+  // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
+  // which is multiplied by the resolution to account for hidpi
+  textureBounds: null,
+  rendererBounds: null,
+  gradientLength: 0,
+  innerColorStart: 0,
+  alphaFallOutEnd: 0,
+  outerColorHSL: [0, 0, 0],
+  innerColorHSL: [0, 0, 0],
+  paths_ubo: UniformGroup.uboFrom({
+    paths: [],
+  }),
+  ranges: new Int16Array([0, 1]),
+  rangesLen: 1,
+});
 
 const scene = new Container();
 let staleMeshes: Container;
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 let assets: { headLeft: Texture } | undefined;
-
-let backgroundTexture: Texture<any> | undefined;
-let textureBounds: Float32Array | undefined;
-let rendererBounds: Float32Array | undefined;
 
 const init = async (): Promise<void> => {
   const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }] = await Promise.all([
@@ -130,11 +144,14 @@ const init = async (): Promise<void> => {
   backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
   scene.addChild(backgroundImage);
 
-  backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
+  shader.uniforms.backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
   // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
   // which is multiplied by the resolution to account for hidpi
-  textureBounds = new Float32Array([backgroundImage.width * RESOLUTION, backgroundImage.height * RESOLUTION]);
-  rendererBounds = new Float32Array([renderer.width, renderer.height]);
+  shader.uniforms.textureBounds = new Float32Array([
+    backgroundImage.width * RESOLUTION,
+    backgroundImage.height * RESOLUTION,
+  ]);
+  shader.uniforms.rendererBounds = new Float32Array([renderer.width, renderer.height]);
 
   animate(performance.now());
 };
@@ -148,27 +165,10 @@ const animate = (time: number): void => {
     geometry = new GeometryViewModel(model.shapeParams, model.dissolve, clipper!);
   }
 
-  const shader = new Shader(GradientProgram, {
-    backgroundTexture,
-    // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
-    // which is multiplied by the resolution to account for hidpi
-    textureBounds,
-    rendererBounds,
-    gradientLength: 0,
-    innerColorStart: 0,
-    alphaFallOutEnd: 0,
-    outerColorHSL: [0, 0, 0],
-    innerColorHSL: [0, 0, 0],
-    paths_ubo: UniformGroup.uboFrom({
-      paths: [],
-    }),
-    ranges: new Int16Array([0, 1]),
-    rangesLen: 1,
-  });
-
   if (geometry.wasUpdated) {
     const polygons = geometry.polygons;
     const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
+    debugger;
     shader.uniforms.paths_ubo = UniformGroup.uboFrom({
       paths: polygons.flat(2),
     });
@@ -192,7 +192,6 @@ const animate = (time: number): void => {
     shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
   const meshes = new Container();
-
   geometry.geometry.forEach((geo) => meshes.addChild(new Mesh(geo, shader)));
   if (staleMeshes) {
     scene.removeChild(staleMeshes);
