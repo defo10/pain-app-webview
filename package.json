@@ -12,7 +12,7 @@
     "watch-compile:server": "tsc --watch",
     "concurrent-watch": "concurrently \"npm:watch-*\""
   },
-  "author": "",
+  "author": "Daniel Stachnik",
   "license": "ISC",
   "devDependencies": {
     "@types/lodash": "^4.14.186",
