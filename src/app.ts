@@ -96,6 +96,9 @@ const updatedModel = (oldModel?: Model): Model => {
         outerColorPicker(checkedRadioBtn("outerColor")) ??
         innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
     },
+    animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
+    frequencyHz: valueFromSlider("frequencyHz"),
+    amplitude: 0,
   };
 };
 
@@ -118,6 +121,10 @@ const shader = gradientShaderFrom({
   paths_ubo: ubo,
   ranges: new Int16Array([0, 1]),
   rangesLen: 1,
+  time: 0,
+  frequencyHz: 0,
+  origin: [0, 0, 0],
+  animationType: 0,
 });
 
 const scene = new Container();
@@ -194,6 +201,12 @@ const animate = (time: number): void => {
 
   if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
     shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+
+  // update animation state
+  shader.uniforms.frequencyHz = model.frequencyHz;
+  shader.uniforms.time = time;
+  shader.uniforms.animationType = model.animationType;
+  shader.uniforms.origin = [renderer.width / 2, renderer.width / 2];
 
   const meshes = new Container();
   geometry.geometry.forEach((geo) => meshes.addChild(new Mesh(geo, shader)));

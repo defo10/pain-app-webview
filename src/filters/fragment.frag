@@ -16,6 +16,12 @@ uniform vec2 rendererBounds; // [renderer width, renderer height]
 uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
 uniform sampler2D backgroundTexture;
 
+uniform vec2 origin; // point where pain originates from
+uniform float time;
+uniform float frequencyHz;
+// 0: off, 1: linear-in, 2: linear-out, 3: soft
+uniform int animationType;
+
 in float d;
 in vec2 vertexPosition;
 
@@ -63,6 +69,24 @@ vec3 rgb2hsl( in vec3 c ){
 	return vec3( h, s, l );
 }
 
+float linearIn(float state) {
+	if (state > 0.8) {
+		return 0.0;
+	}
+	return smoothstep(0.0, 0.8, state);
+}
+
+float linearOut(float state) {
+	if (state < 0.2) {
+		return 0.0;
+	}
+	return smoothstep(0.2, 1.0, state); 
+}
+
+float soft(float state) {
+	return 1. + -1.0 * pow(2.0 * state - 1.0, 2.);
+}
+
 void main() {
     float pct = smoothstep(0.0, gradientLength, d);
 
@@ -78,9 +102,27 @@ void main() {
 	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
 	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
 	bool isBelowPic = normalizedYCoord < 0.0;
-	// don't draw render texture if background not visible anyway
-	bool noBackgroundVisible = backgroundPct == 1.0;
-    vec4 backgroundColor = (isBelowPic || noBackgroundVisible) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
+    vec4 backgroundColor = (isBelowPic) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
 
-    outputColor = mix(backgroundColor, colorGradient, backgroundPct);
+    vec4 colorWithOpacity = mix(backgroundColor, colorGradient, backgroundPct);
+
+	// add animation effects:
+	float maxDistanceToOrigin = length(textureBounds);
+	float distanceOriginCoord = distance(origin, vertexPosition);
+	float distanceRatio = distanceOriginCoord / maxDistanceToOrigin;
+	
+	float timeForOneRepetition = 1000. / frequencyHz;
+  	float state = mod(time + distanceRatio * 1000., timeForOneRepetition) / timeForOneRepetition; // -> [0, 1]
+	float visibility = 1.0;
+	if (animationType == 1) {
+		visibility = linearIn(state);
+	}
+	if (animationType == 2) {
+		visibility = linearOut(state);
+	}
+	if (animationType == 3) {
+		visibility = soft(state);
+	}
+
+	outputColor = mix(backgroundColor, colorWithOpacity, visibility);
 }

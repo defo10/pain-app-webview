@@ -4,13 +4,15 @@ import * as clipperLib from "js-angusj-clipper";
 import { metaballsPaths, samplePolygon } from "./polygon";
 import _ from "lodash";
 import poly2tri from "poly2tri";
+import { polyon2starshape } from "./polygon/polygons";
 
-/** saves state of geometry (triangulated polygons) interface and recalculates operations necessary for rendering */
+/** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
 export class GeometryViewModel {
   private readonly scalingFactor = 10e4;
   private readonly clipper: clipperLib.ClipperLibWrapper;
   private model: ShapeParameters;
   private dissolve: number;
+  /** polygons that have been scaled using scalingFactor before bc clipperLib works on integers */
   private polygonsUnionedScaled: clipperLib.Path[] = [];
 
   public polygons: Array<Array<[number, number]>> = [];
@@ -98,9 +100,10 @@ export class GeometryViewModel {
           }),
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? [];
-    return polygonsUnionedScaled.map((p) =>
+    const polygons = polygonsUnionedScaled.map((p) =>
       p.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
     );
+    return polygons;
   }
 
   private getPolygonsUnionedScaled(): clipperLib.Path[] {

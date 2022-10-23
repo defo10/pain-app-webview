@@ -19,4 +19,9 @@ export interface Model {
   shapeParams: ShapeParameters;
   coloringParams: ColoringParameters;
   dissolve: number;
+  /** 0: off, 1: linear-in, 2: linear-out, 3: soft */
+  animationType: 0 | 1 | 2 | 3;
+  /** in hz */
+  frequencyHz: number;
+  amplitude: number;
 }

@@ -81,6 +81,29 @@
       <input type="range" id="dissolve" name="dissolve" min="0.00" max="1" value="0.00" step="0.01">
       <label for="dissolve">Menge</label>
     </div>
+    <form>
+      <legend>Animation:</legend>
+      <div>
+        <input type="radio" id="off" value="0" name="animation-curve" checked>
+        <label for="off">Aus</label>
+        <input type="radio" id="linear-in" value="1" name="animation-curve">
+        <label for="linear-in">pulsierend aufbauend</label>
+        <input type="radio" id="linear-out" value="2" name="animation-curve">
+        <label for="linear-out">pulsierend abbauend</label>
+        <input type="radio" id="soft" value="3" name="animation-curve">
+        <label for="soft">gleichmäßig pulsierend</label>
+      </div>
+      <div>
+        <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="2" value="0.3" step="0.01"
+          list="frequencies">
+        <label for="frequencyHz">Frequenz</label>
+        <datalist id="frequencies">
+          <option value="0.1" label="0 Hz"></option>
+          <option value="1.0" label="1 Hz"></option>
+          <option value="2.0" label="2 Hz"></option>
+        </datalist>
+      </div>
+    </form>
   </div>
 </body>
 <script src="index.js"></script>

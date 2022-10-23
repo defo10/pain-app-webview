@@ -123,9 +123,50 @@ export const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{
   return steinerPoints;
 };
 
-export function polyon2starshape(contour: Array<[number, number]>): Array<[number, number]> {
+function perpendicularVectorAt(polygon: EuclidPolygon, i: number): EuclidPoint {
+  const delta = 0.001;
+  // TODO this marches from the polygon start to point three times for every step -> do it in one go?
+  const pointAhead = polygon.at(i + delta);
+  const pointBehind = polygon.at(i - delta);
+  const tangent = new Line(pointBehind, pointAhead);
+  return tangent.perpendicularVector.unitVector;
+}
+
+export function polyon2starshape(
+  contour: Array<[number, number]>,
+  offset: number, // konzentriert/strahlend
+  sharpness: number, // rund/zackig
+  length: number // Anzahl Zacken
+): Array<[number, number]> {
+  const starshape = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
-  const cirumference = polygon.circumference;
-  for (let i = 0.0; i <= 1.0; i += cirumference / 10) {}
+  const number = polygon.circumference / length;
+  const step = 1.0 / number;
+  for (let i = 0.0; i <= 1.0; i += step) {
+    const point = polygon.at(i);
+    const perpendicularUV = perpendicularVectorAt(polygon, i);
+    const outerPoint = point.add(perpendicularUV.scale(offset));
+
+    const midPointI = i + step / 2;
+    const pointAtMidpointI = polygon.at(midPointI);
+    const midpointPerpendicularUV = perpendicularVectorAt(polygon, midPointI);
+    const innerPoint = pointAtMidpointI.subtract(midpointPerpendicularUV.scale(offset));
+
+    starshape.push(outerPoint, innerPoint);
+  }
+  const curveInterpolator = new CurveInterpolator(
+    starshape.map(({ x, y }) => [x, y]),
+    { tension: 0.0 }
+  );
+  return curveInterpolator.getPoints(number * 2 * 6);
+}
+
+export function starshape(
+  center: Point,
+  radius: number,
+  innerRadius: number,
+  sharpness: number
+): Array<[number, number]> {
+  debugger;
   return [];
 }
