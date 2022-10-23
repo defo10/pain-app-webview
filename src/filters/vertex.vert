@@ -1,7 +1,7 @@
 #version 300 es
 
-#define PATHS_MAX_LEN 200
-#define RANGES_MAX_LEN 20
+#define PATHS_MAX_LEN 100
+#define RANGES_MAX_LEN 15
 
 precision lowp float;
 precision lowp int;

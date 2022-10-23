@@ -21,14 +21,15 @@ import {
   UniformGroup,
 } from "pixi.js";
 import { metaballsPaths } from "./polygon";
-
-// extending vanilla pixi
+import simplify from "simplify-js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
 import { gradientShaderFrom } from "./filters/GradientShader";
+import { simplify2d } from "curve-interpolator";
+import { SimplePolygon } from "./polygon/polygons";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -166,9 +167,13 @@ const animate = (time: number): void => {
 
   if (geometry.wasUpdated) {
     const polygons = geometry.polygons;
-    const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
+    const simplePolygon = polygons
+      .map((polygon) => polygon.map(([x, y]) => ({ x, y })))
+      .map((polygon) => simplify(polygon, 1))
+      .map((polygon) => polygon.map(({ x, y }: { x: number; y: number }) => [x, y]));
 
-    ubo.uniforms.paths = polygons.flat(2);
+    const ranges = getRanges(simplePolygon.map((arr) => arr.flat())).flat();
+    ubo.uniforms.paths = simplePolygon.flat(2);
     ubo.update();
 
     shader.uniforms.ranges = new Int16Array(ranges);
