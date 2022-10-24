@@ -10,9 +10,7 @@ uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
 uniform vec2 rendererBounds; // [renderer width, renderer height]
-
 uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
-uniform sampler2D backgroundTexture;
 
 in float vDistance;
 in vec2 vertexPosition;
@@ -71,11 +69,6 @@ void main() {
 	// 0 means background only, 1 means background not shining thorugh
     float backgroundPct = smoothstep(0.0, alphaFallOutEnd, vDistance);
 
-	float yBottomOffset = rendererBounds.y - textureBounds.y;
-	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
-	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
-	bool isBelowPic = normalizedYCoord < 0.0;
-    vec4 backgroundColor = (isBelowPic) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
-
-    outputColor = mix(backgroundColor, colorGradient, backgroundPct);
+    // pre-multiply alpha
+    outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
 }

@@ -7,7 +7,6 @@ import {
   autoDetectRenderer,
   Container,
   ENV,
-  generateUniformBufferSync,
   Graphics,
   Mesh,
   MIPMAP_MODES,
@@ -15,16 +14,12 @@ import {
   PRECISION,
   RenderTexture,
   settings,
-  Buffer,
   Sprite,
   Texture,
   UniformGroup,
   Geometry,
-  Shader,
-  Polygon as PixiPolygon,
   DRAW_MODES,
 } from "pixi.js";
-import { metaballsPaths } from "./polygon";
 import simplify from "simplify-js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
@@ -32,8 +27,7 @@ import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } 
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
-import { simplify2d } from "curve-interpolator";
-import { SimplePolygon, starshape } from "./polygon/polygons";
+import { starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 
 // gl matrix uses float 32 types by default, but array is much faster.
@@ -47,13 +41,13 @@ const DOWNSCALE_FACTOR = 1.0;
 settings.PRECISION_FRAGMENT = PRECISION.LOW;
 settings.PRECISION_VERTEX = PRECISION.LOW;
 settings.TARGET_FPMS = 60;
+settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
 });
-
 // async inits
 const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
@@ -167,7 +161,6 @@ const init = async (): Promise<void> => {
   scene.addChild(backgroundImage);
 
   for (const sh of [shader, starShader]) {
-    sh.uniforms.backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
     sh.uniforms.textureBounds = new Float32Array([
       backgroundImage.width * RESOLUTION,
       backgroundImage.height * RESOLUTION,
@@ -217,7 +210,7 @@ const animate = (time: number): void => {
   if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
     shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
-  const meshes = new Container();
+  const meshesContainer = new Container();
   // test star shape
   const point = new Point(80, 80);
   const star = starshape(
@@ -239,14 +232,14 @@ const animate = (time: number): void => {
   starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
   const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-  meshes.addChild(mesh);
+  meshesContainer.addChild(mesh);
 
-  geometry.geometry.forEach((geo) => meshes.addChild(new Mesh(geo, shader)));
+  geometry.geometry.forEach((geo) => meshesContainer.addChild(new Mesh(geo, shader)));
   if (staleMeshes) {
     scene.removeChild(staleMeshes);
   }
-  scene.addChild(meshes);
-  staleMeshes = meshes;
+  scene.addChild(meshesContainer);
+  staleMeshes = meshesContainer;
 
   for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
     const painShape = model.shapeParams.painShapes[i];
@@ -270,7 +263,7 @@ const animate = (time: number): void => {
       painShape.position.y = e.data.global.y;
       model.shapeParams.painShapesDragging[i] = false;
     });
-    meshes.addChild(circle);
+    meshesContainer.addChild(circle);
   }
 
   renderer.render(scene);

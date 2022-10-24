@@ -12,9 +12,7 @@ uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
 uniform vec2 rendererBounds; // [renderer width, renderer height]
-
 uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
-uniform sampler2D backgroundTexture;
 
 uniform vec2 origin; // point where pain originates from
 uniform float time;
@@ -98,14 +96,6 @@ void main() {
 	// 0 means background only, 1 means background not shining thorugh
     float backgroundPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, d);
 
-	float yBottomOffset = rendererBounds.y - textureBounds.y;
-	float normalizedXCoord = gl_FragCoord.x / textureBounds.x;
-	float normalizedYCoord = (gl_FragCoord.y - yBottomOffset) / textureBounds.y;
-	bool isBelowPic = normalizedYCoord < 0.0;
-    vec4 backgroundColor = (isBelowPic) ? vec4(1.0) : texture(backgroundTexture, vec2(normalizedXCoord, 1.0 - normalizedYCoord));
-
-    vec4 colorWithOpacity = mix(backgroundColor, colorGradient, backgroundPct);
-
 	// add animation effects:
 	float maxDistanceToOrigin = length(textureBounds);
 	float distanceOriginCoord = distance(origin, vertexPosition);
@@ -124,5 +114,5 @@ void main() {
 		visibility = soft(state);
 	}
 
-	outputColor = mix(backgroundColor, colorWithOpacity, visibility);
+    outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
 }
