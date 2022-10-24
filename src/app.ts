@@ -19,6 +19,10 @@ import {
   Sprite,
   Texture,
   UniformGroup,
+  Geometry,
+  Shader,
+  Polygon as PixiPolygon,
+  DRAW_MODES,
 } from "pixi.js";
 import { metaballsPaths } from "./polygon";
 import simplify from "simplify-js";
@@ -27,9 +31,10 @@ import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
-import { gradientShaderFrom } from "./filters/GradientShader";
+import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { simplify2d } from "curve-interpolator";
-import { SimplePolygon } from "./polygon/polygons";
+import { SimplePolygon, starshape } from "./polygon/polygons";
+import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -127,6 +132,16 @@ const shader = gradientShaderFrom({
   animationType: 0,
 });
 
+const starShader = starShaderFrom({
+  backgroundTexture: null,
+  textureBounds: null,
+  rendererBounds: null,
+  innerColorStart: 0,
+  alphaFallOutEnd: 0,
+  outerColorHSL: [0, 0, 0],
+  innerColorHSL: [0, 0, 0],
+});
+
 const scene = new Container();
 let staleMeshes: Container;
 let clipper: clipperLib.ClipperLibWrapper | undefined;
@@ -151,14 +166,14 @@ const init = async (): Promise<void> => {
   backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
   scene.addChild(backgroundImage);
 
-  shader.uniforms.backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
-  // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
-  // which is multiplied by the resolution to account for hidpi
-  shader.uniforms.textureBounds = new Float32Array([
-    backgroundImage.width * RESOLUTION,
-    backgroundImage.height * RESOLUTION,
-  ]);
-  shader.uniforms.rendererBounds = new Float32Array([renderer.width, renderer.height]);
+  for (const sh of [shader, starShader]) {
+    sh.uniforms.backgroundTexture = RenderTexture.from(backgroundImage.texture.baseTexture);
+    sh.uniforms.textureBounds = new Float32Array([
+      backgroundImage.width * RESOLUTION,
+      backgroundImage.height * RESOLUTION,
+    ]);
+    sh.uniforms.rendererBounds = new Float32Array([renderer.width, renderer.height]);
+  }
 
   animate(performance.now());
 };
@@ -202,13 +217,30 @@ const animate = (time: number): void => {
   if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
     shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
-  // update animation state
-  shader.uniforms.frequencyHz = model.frequencyHz;
-  shader.uniforms.time = time;
-  shader.uniforms.animationType = model.animationType;
-  shader.uniforms.origin = [renderer.width / 2, renderer.width / 2];
-
   const meshes = new Container();
+  // test star shape
+  const point = new Point(80, 80);
+  const star = starshape(
+    point,
+    valueFromSlider("radiusStar"),
+    valueFromSlider("innerOffset"),
+    valueFromSlider("roundness"),
+    valueFromSlider("numWings")
+  );
+  const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
+  const centroid = polygon.centroid;
+  const geom = new Geometry()
+    .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
+    .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
+
+  starShader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
+  starShader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
+  starShader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
+  starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+
+  const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+  meshes.addChild(mesh);
+
   geometry.geometry.forEach((geo) => meshes.addChild(new Mesh(geo, shader)));
   if (staleMeshes) {
     scene.removeChild(staleMeshes);

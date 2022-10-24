@@ -5,6 +5,7 @@ import { Point, Polygon as PixiPolygon } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
 import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
+const smoothstep = require("interpolation").smoothstep;
 
 export type SimplePolygon = Point[];
 
@@ -163,10 +164,39 @@ export function polyon2starshape(
 
 export function starshape(
   center: Point,
-  radius: number,
   innerRadius: number,
-  sharpness: number
+  outerOffset: number,
+  roundnessRatio: number,
+  numWings: number
 ): Array<[number, number]> {
-  debugger;
-  return [];
+  const starshape: EuclidPoint[] = [];
+  const contour = circlePolygon(center, innerRadius + outerOffset);
+  const polygon = new EuclidPolygon(...contour.map(({ x, y }) => new EuclidPoint(x, y)));
+  const step = 1.0 / numWings;
+  const maxRoundness = Math.min(outerOffset, polygon.circumference * step * 0.25);
+  const roundness = Math.max(roundnessRatio * maxRoundness, 0.1);
+  for (let i = 0.0; i < 1.0; i += step) {
+    const outerPoint = polygon.at(i);
+
+    const outerPointPerpendicular = perpendicularVectorAt(polygon, i); // point outwards
+    const scaledOuterPointPerpendicular = outerPointPerpendicular.scale(roundness);
+    const wingCenter = outerPoint.subtract(scaledOuterPointPerpendicular);
+    starshape.push(
+      wingCenter.subtract(scaledOuterPointPerpendicular.rotate(Math.PI / 2)),
+      outerPoint,
+      wingCenter.add(scaledOuterPointPerpendicular.rotate(Math.PI / 2))
+    );
+
+    const midPointI = i + step / 2;
+    const pointAtMidpointI = polygon.at(midPointI);
+    const midpointPerpendicularUV = perpendicularVectorAt(polygon, midPointI);
+    const innerPoint = pointAtMidpointI.subtract(midpointPerpendicularUV.scale(outerOffset));
+    starshape.push(innerPoint);
+  }
+  const curveInterpolator = new CurveInterpolator(
+    starshape.map(({ x, y }) => [x, y]),
+    { tension: 0.0 }
+  );
+  const points = curveInterpolator.getPoints(numWings * 2 * 10);
+  return [...points, points[0]];
 }
