@@ -1,7 +1,7 @@
 import _ from "lodash";
 import * as gl from "gl-matrix";
 import { bounds, clamp, lerpPoints } from "./utils";
-import { Point, Polygon as PixiPolygon } from "pixi.js";
+import { IPoint, Point, Polygon as PixiPolygon } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
 import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
@@ -200,3 +200,64 @@ export function starshape(
   const points = curveInterpolator.getPoints(numWings * 2 * 10);
   return [...points, points[0]];
 }
+
+export interface MinsDistData {
+  projection: Point;
+  distance: number;
+  line: [number, number, number, number];
+}
+// return point of minimum distance on VW to P
+export const minimumDistancePointOnLine = (v: Point, w: Point, p: Point): MinsDistData => {
+  const l2 = Math.pow(w.x - v.x, 2.0) + Math.pow(w.y - v.y, 2.0); // i.e. |w-v|^2 -  avoid a sqrt
+  const pMinusV = p.subtract(v);
+  const wMinusV = w.subtract(v);
+  const t = clamp(pMinusV.dot(wMinusV) / l2, 0, 1);
+  const projection = v.add(wMinusV.multiplyScalar(t));
+  return {
+    projection,
+    distance: Math.sqrt(Math.pow(p.x - projection.x, 2.0) + Math.pow(p.y - projection.y, 2.0)),
+    line: [v.x, v.y, w.x, w.y],
+  };
+};
+
+// src: https://stackoverflow.com/questions/13937782/calculating-the-point-of-intersection-of-two-lines
+// src: http://paulbourke.net/geometry/pointlineplane/javascript.txt
+// line intercept math by Paul Bourke http://paulbourke.net/geometry/pointlineplane/
+// Determine the intersection point of two line segments
+// Return FALSE if the lines don't intersect
+export const lineLineIntersection = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+  x4: number,
+  y4: number
+): [number, number] | false => {
+  // Check if none of the lines are of length 0
+  if ((x1 === x2 && y1 === y2) || (x3 === x4 && y3 === y4)) {
+    return false;
+  }
+
+  const denominator = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+
+  // Lines are parallel
+  if (denominator === 0) {
+    return false;
+  }
+
+  const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denominator;
+  const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denominator;
+
+  // is the intersection along the segments
+  if (ua < 0 || ua > 1 || ub < 0 || ub > 1) {
+    return false;
+  }
+
+  // Return a object with the x and y coordinates of the intersection
+  const x = x1 + ua * (x2 - x1);
+  const y = y1 + ua * (y2 - y1);
+
+  return [x, y];
+};

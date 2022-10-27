@@ -182,13 +182,8 @@ const animate = (time: number): void => {
 
   if (geometry.wasUpdated) {
     const polygons = geometry.polygons;
-    const simplePolygon = polygons
-      .map((polygon) => polygon.map(([x, y]) => ({ x, y })))
-      .map((polygon) => simplify(polygon, 1))
-      .map((polygon) => polygon.map(({ x, y }: { x: number; y: number }) => [x, y]));
-
-    const ranges = getRanges(simplePolygon.map((arr) => arr.flat())).flat();
-    ubo.uniforms.paths = simplePolygon.flat(2);
+    const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
+    ubo.uniforms.paths = polygons.flat(2);
     ubo.update();
 
     shader.uniforms.ranges = new Int16Array(ranges);
