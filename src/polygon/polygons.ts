@@ -5,7 +5,10 @@ import { Point, Polygon as PixiPolygon } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
 import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
+import offsetPolygon from "offset-polygon";
+import { debug, debugPolygon } from "../debug";
 const smoothstep = require("interpolation").smoothstep;
+const lerp = require("interpolation").lerp;
 
 export type SimplePolygon = Point[];
 
@@ -133,33 +136,47 @@ function perpendicularVectorAt(polygon: EuclidPolygon, i: number): EuclidPoint {
   return tangent.perpendicularVector.unitVector;
 }
 
-export function polyon2starshape(
+/** transforms a polygon to the same polygon shape with wings added to them */
+export function polygon2starshape(
   contour: Array<[number, number]>,
-  offset: number, // konzentriert/strahlend
-  sharpness: number, // rund/zackig
-  length: number // Anzahl Zacken
+  outerOffset: number,
+  roundnessRatio: number,
+  wingLength: number
 ): Array<[number, number]> {
-  const starshape = [];
+  const starshape: EuclidPoint[] = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
-  const number = polygon.circumference / length;
-  const step = 1.0 / number;
-  for (let i = 0.0; i <= 1.0; i += step) {
-    const point = polygon.at(i);
-    const perpendicularUV = perpendicularVectorAt(polygon, i);
-    const outerPoint = point.add(perpendicularUV.scale(offset));
+  const numWings = Math.floor(polygon.circumference / wingLength);
+  const step = 1.0 / numWings;
+  for (let i = 0.0; i < 1.0; i += step) {
+    const midDelta = 0.5 * step;
+    const midPointI = i + midDelta;
+    const innerPoint = polygon.at(i);
 
-    const midPointI = i + step / 2;
-    const pointAtMidpointI = polygon.at(midPointI);
-    const midpointPerpendicularUV = perpendicularVectorAt(polygon, midPointI);
-    const innerPoint = pointAtMidpointI.subtract(midpointPerpendicularUV.scale(offset));
+    // for terminoloy, consider this strip as a horizontal line with innerPoint being on the line,
+    // and outerPoint being shifted north by outerOffset, i.e. outerPoint is the wing tip
+    // the start (i = 0) is on the right side and goes left/ccw
+    const outerPoint = polygon.at(midPointI).add(perpendicularVectorAt(polygon, midPointI).scale(outerOffset));
+    const horizontalDelta: number = lerp(1e-3, midDelta * 0.7, roundnessRatio);
+    // this is the ratio applied to outerOffset to change the heights of the points defining
+    // the left and right side of the wing
+    const verticalOffsetRatio: number = lerp(0.6, 0.8, roundnessRatio);
 
-    starshape.push(outerPoint, innerPoint);
+    const outerPointLeft = polygon
+      .at(midPointI + horizontalDelta)
+      .add(perpendicularVectorAt(polygon, midPointI + horizontalDelta).scale(outerOffset * verticalOffsetRatio));
+    const outerPointRight = polygon
+      .at(midPointI - horizontalDelta)
+      .add(perpendicularVectorAt(polygon, midPointI - horizontalDelta).scale(outerOffset * verticalOffsetRatio));
+
+    starshape.push(innerPoint, outerPointRight, outerPoint, outerPointLeft);
   }
   const curveInterpolator = new CurveInterpolator(
     starshape.map(({ x, y }) => [x, y]),
     { tension: 0.0 }
   );
-  return curveInterpolator.getPoints(number * 2 * 6);
+  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 10);
+  points = [...points, points[0]];
+  return points;
 }
 
 export function starshape(
@@ -167,11 +184,12 @@ export function starshape(
   innerRadius: number,
   outerOffset: number,
   roundnessRatio: number,
-  numWings: number
+  wingLength: number
 ): Array<[number, number]> {
   const starshape: EuclidPoint[] = [];
   const contour = circlePolygon(center, innerRadius + outerOffset);
   const polygon = new EuclidPolygon(...contour.map(({ x, y }) => new EuclidPoint(x, y)));
+  const numWings = Math.floor(polygon.circumference / wingLength);
   const step = 1.0 / numWings;
   const maxRoundness = Math.min(outerOffset, polygon.circumference * step * 0.25);
   const roundness = Math.max(roundnessRatio * maxRoundness, 0.1);

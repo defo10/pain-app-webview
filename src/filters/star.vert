@@ -1,7 +1,7 @@
 #version 300 es
 
-precision lowp float;
-precision lowp int;
+precision mediump float;
+precision mediump int;
 
 in vec2 aVertexPosition;
 in float aDistance;

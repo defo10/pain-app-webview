@@ -4,7 +4,6 @@ import * as clipperLib from "js-angusj-clipper";
 import { metaballsPaths, samplePolygon } from "./polygon";
 import _ from "lodash";
 import poly2tri from "poly2tri";
-import { polyon2starshape } from "./polygon/polygons";
 import simplify from "simplify-js";
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
@@ -104,9 +103,13 @@ export class GeometryViewModel {
     const polygons = polygonsUnionedScaled.map((p) =>
       p.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
     );
-    const simplePolygon = polygons
+    return polygons;
+  }
+
+  public get polygonsSimplified(): Array<Array<[number, number]>> {
+    const simplePolygon = this.polygons
       .map((polygon) => polygon.map(([x, y]) => ({ x, y })))
-      .map((polygon) => simplify(polygon, 1))
+      .map((polygon) => simplify(polygon, 5, true))
       .map((polygon) => polygon.map(({ x, y }: { x: number; y: number }) => [x, y] as [number, number]));
     return simplePolygon;
   }

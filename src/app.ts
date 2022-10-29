@@ -27,8 +27,12 @@ import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } 
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
-import { starshape } from "./polygon/polygons";
+import { starshape, polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
+import offsetPolygon from "offset-polygon";
+import { debug, debugPolygon } from "./debug";
+import { CurveInterpolator } from "curve-interpolator";
+import { clamp } from "./polygon/utils";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -40,7 +44,7 @@ settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 const DOWNSCALE_FACTOR = 1.0;
 settings.PRECISION_FRAGMENT = PRECISION.LOW;
 settings.PRECISION_VERTEX = PRECISION.LOW;
-settings.TARGET_FPMS = 60;
+settings.TARGET_FPMS = 30;
 settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
 const renderer = autoDetectRenderer({
@@ -181,7 +185,7 @@ const animate = (time: number): void => {
   }
 
   if (geometry.wasUpdated) {
-    const polygons = geometry.polygons;
+    const polygons = geometry.polygonsSimplified;
     const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
     ubo.uniforms.paths = polygons.flat(2);
     ubo.update();
@@ -213,7 +217,7 @@ const animate = (time: number): void => {
     valueFromSlider("radiusStar"),
     valueFromSlider("innerOffset"),
     valueFromSlider("roundness"),
-    valueFromSlider("numWings")
+    valueFromSlider("wingLength")
   );
   const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
   const centroid = polygon.centroid;
@@ -229,7 +233,39 @@ const animate = (time: number): void => {
   const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
   meshesContainer.addChild(mesh);
 
-  geometry.geometry.forEach((geo) => meshesContainer.addChild(new Mesh(geo, shader)));
+  const graphics = new Graphics();
+  graphics.beginFill(0xffffff, 1);
+  for (const contourSimple of geometry.polygonsSimplified) {
+    debugger;
+    const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
+    const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 5, 200));
+    const contour = contourSmooth;
+
+    const starShape = polygon2starshape(
+      contour,
+      valueFromSlider("innerOffset"),
+      valueFromSlider("roundness"),
+      valueFromSlider("wingLength")
+    );
+    const scalingFactor = 10e7;
+    const simplifiedStarShape = simplify(
+      starShape.map(([x, y]) => ({ x, y })),
+      0.1
+    );
+    const starShapeScaled = simplifiedStarShape.map(({ x, y }) => ({
+      x: Math.round(x * scalingFactor),
+      y: Math.round(y * scalingFactor),
+    }));
+    const starShapeSimplified =
+      clipper
+        ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
+        .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor])) ?? [];
+
+    starShapeSimplified.forEach((arr) => graphics.drawPolygon(arr.flat()));
+  }
+  graphics.endFill();
+  meshesContainer.addChild(graphics);
+  // geometry.geometry.forEach((geo) => meshesContainer.addChild(new Mesh(geo, shader)));
   if (staleMeshes) {
     scene.removeChild(staleMeshes);
   }
