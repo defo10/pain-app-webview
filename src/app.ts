@@ -25,7 +25,7 @@ import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { GeometryViewModel } from "./viewmodel";
-import { Model } from "./model";
+import { Model, StarShapeParameters } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { starshape, polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
@@ -99,6 +99,11 @@ const updatedModel = (oldModel?: Model): Model => {
         outerColorPicker(checkedRadioBtn("outerColor")) ??
         innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
     },
+    starShapeParams: {
+      innerOffset: valueFromSlider("innerOffset"),
+      roundness: valueFromSlider("roundness"),
+      wingLength: valueFromSlider("wingLength"),
+    },
     animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
     amplitude: 0,
@@ -106,7 +111,7 @@ const updatedModel = (oldModel?: Model): Model => {
 };
 
 let model: Model = updatedModel();
-let geometry: undefined | GeometryViewModel;
+let geometryVM: undefined | GeometryViewModel;
 const ubo = UniformGroup.uboFrom({
   paths: [],
 });
@@ -178,14 +183,14 @@ const init = async (): Promise<void> => {
 const animate = (time: number): void => {
   model = updatedModel(model);
 
-  if (geometry) {
-    geometry.updateModel(model.shapeParams, model.dissolve);
+  if (geometryVM) {
+    geometryVM.updateModel(model);
   } else {
-    geometry = new GeometryViewModel(model.shapeParams, model.dissolve, clipper!);
+    geometryVM = new GeometryViewModel(model, clipper!);
   }
 
-  if (geometry.wasUpdated) {
-    const polygons = geometry.polygonsSimplified;
+  if (geometryVM.wasUpdated) {
+    const polygons = geometryVM.polygonsSimplified;
     const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
     ubo.uniforms.paths = polygons.flat(2);
     ubo.update();
@@ -211,63 +216,43 @@ const animate = (time: number): void => {
 
   const meshesContainer = new Container();
   // test star shape
-  const point = new Point(80, 80);
-  const star = starshape(
-    point,
-    valueFromSlider("radiusStar"),
-    valueFromSlider("innerOffset"),
-    valueFromSlider("roundness"),
-    valueFromSlider("wingLength")
-  );
-  const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
-  const centroid = polygon.centroid;
-  const geom = new Geometry()
-    .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
-    .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
-
   starShader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
   starShader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
   starShader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
   starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
-  const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-  meshesContainer.addChild(mesh);
-
-  const graphics = new Graphics();
-  graphics.beginFill(0xffffff, 1);
-  for (const contourSimple of geometry.polygonsSimplified) {
-    debugger;
-    const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
-    const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 5, 200));
-    const contour = contourSmooth;
-
-    const starShape = polygon2starshape(
-      contour,
+  for (const pos of geometryVM.stars.flat()) {
+    const point = new Point(...pos.center);
+    const star = starshape(
+      point,
+      pos.radius,
       valueFromSlider("innerOffset"),
       valueFromSlider("roundness"),
       valueFromSlider("wingLength")
     );
-    const scalingFactor = 10e7;
-    const simplifiedStarShape = simplify(
-      starShape.map(([x, y]) => ({ x, y })),
-      0.1
-    );
-    const starShapeScaled = simplifiedStarShape.map(({ x, y }) => ({
-      x: Math.round(x * scalingFactor),
-      y: Math.round(y * scalingFactor),
-    }));
-    const starShapeSimplified =
-      clipper
-        ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
-        .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor])) ?? [];
+    const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
+    const centroid = polygon.centroid;
+    const geom = new Geometry()
+      .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
+      .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
 
-    starShapeSimplified.forEach((arr) => graphics.drawPolygon(arr.flat()));
+    const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+    meshesContainer.addChild(mesh);
   }
+
+  const graphics = new Graphics();
+  graphics.beginFill(0xffffff, 1);
+  geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
   graphics.endFill();
   meshesContainer.addChild(graphics);
-  // geometry.geometry.forEach((geo) => meshesContainer.addChild(new Mesh(geo, shader)));
+
   if (staleMeshes) {
     scene.removeChild(staleMeshes);
+    staleMeshes.destroy({
+      children: true,
+      texture: true,
+      baseTexture: true,
+    });
   }
   scene.addChild(meshesContainer);
   staleMeshes = meshesContainer;

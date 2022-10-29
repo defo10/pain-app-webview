@@ -13,9 +13,9 @@ const lerp = require("interpolation").lerp;
 export type SimplePolygon = Point[];
 
 /** returns polygon of a circle around @param center with @param radius */
-export const circlePolygon = (center: Point, radius: number): SimplePolygon => {
+export const circlePolygon = (center: Point, radius: number, stepSize = 0.15): SimplePolygon => {
   const circlePaths = [];
-  for (let i = 0; i < 2 * Math.PI; i = i + 0.15) {
+  for (let i = 0; i < 2 * Math.PI; i = i + stepSize) {
     circlePaths.push(new Point(center.x + Math.cos(i) * radius, center.y + Math.sin(i) * radius));
   }
   return circlePaths;

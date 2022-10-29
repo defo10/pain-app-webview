@@ -1,121 +1,138 @@
-import { Geometry } from "pixi.js";
-import { ShapeParameters } from "./model";
+import { Geometry, Point } from "pixi.js";
+import { Model, ShapeParameters } from "./model";
 import * as clipperLib from "js-angusj-clipper";
 import { metaballsPaths, samplePolygon } from "./polygon";
 import _ from "lodash";
 import poly2tri from "poly2tri";
 import simplify from "simplify-js";
+import { Polygon as EuclidPolygon, Point as EuclidPoint, Circle } from "@mathigon/euclid";
+import { polygon2starshape, SimplePolygon } from "./polygon/polygons";
+import { Position, RandomSpaceFilling } from "./polygon/space_filling";
+import { CurveInterpolator } from "curve-interpolator";
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
 export class GeometryViewModel {
   private readonly scalingFactor = 10e4;
   private readonly clipper: clipperLib.ClipperLibWrapper;
-  private model: ShapeParameters;
-  private dissolve: number;
-  /** polygons that have been scaled using scalingFactor before bc clipperLib works on integers */
-  private polygonsUnionedScaled: clipperLib.Path[] = [];
-
+  private model: Model;
+  private polygonsUnioned: Array<Array<[number, number]>> = [];
+  public stars: Position[][] = [];
+  public polygonsSimplified: Array<Array<[number, number]>> = [];
   public polygons: Array<Array<[number, number]>> = [];
   public geometry: Geometry[] = [];
   public wasUpdated = false;
 
-  constructor(model: ShapeParameters, dissolve: number, clipper: clipperLib.ClipperLibWrapper) {
+  constructor(model: Model, clipper: clipperLib.ClipperLibWrapper) {
     this.model = model;
-    this.dissolve = dissolve;
     this.clipper = clipper;
     this.wasUpdated = true;
 
-    this.polygonsUnionedScaled = this.getPolygonsUnionedScaled();
-    this.polygons = this.getPolygons();
-    this.geometry = this.getGeometry();
+    this.polygonsUnioned = this.getPolygonsUnioned();
+    this.polygonsSimplified = this.getPolygonsSimplified();
+    this.stars = this.getStars();
+    this.polygons = this.getStarShapedPolygons();
+    // this.geometry = this.getGeometry();
   }
 
-  public updateModel(model: ShapeParameters, dissolve: number): void {
+  public updateModel(model: Model): void {
     const staleModel = this.model;
     this.model = model;
-    const staleDissolve = this.dissolve;
-    this.dissolve = dissolve;
 
-    const hasSamePath = _.isEqual(staleModel, model) && !model.painShapesDragging.some((p) => p);
-    this.polygonsUnionedScaled = hasSamePath ? this.polygonsUnionedScaled : this.getPolygonsUnionedScaled();
+    const hasSamePath =
+      _.isEqual(staleModel.shapeParams, model.shapeParams) && !model.shapeParams.painShapesDragging.some((p) => p);
+    this.polygonsUnioned = hasSamePath ? this.polygonsUnioned : this.getPolygonsUnioned();
+    this.polygonsSimplified = hasSamePath ? this.polygonsSimplified : this.getPolygonsSimplified();
+    this.stars = hasSamePath ? this.stars : this.getStars();
 
-    const hasSameDissolve = staleDissolve === dissolve;
-    this.polygons = hasSameDissolve && hasSamePath ? this.polygons : this.getPolygons();
+    const hasSameDissolve = staleModel.dissolve === model.dissolve;
+    this.polygons = hasSameDissolve && hasSamePath ? this.polygons : this.getStarShapedPolygons();
 
+    /*
     const hasSameGeometry = hasSameDissolve && hasSamePath;
     this.geometry = hasSameGeometry ? this.geometry : this.getGeometry();
-
-    this.wasUpdated = !(hasSamePath && hasSameDissolve && hasSameGeometry);
+    */
+    // this.wasUpdated = !(hasSamePath && hasSameDissolve && hasSameGeometry);
+    this.wasUpdated = !(hasSamePath && hasSameDissolve);
   }
 
-  private getGeometry(): Geometry[] {
-    const geometries = [];
-    for (const contourUnscaled of this.polygonsUnionedScaled) {
-      const contour = contourUnscaled.map(({ x, y }) => ({ x: x / this.scalingFactor, y: y / this.scalingFactor }));
-
-      // TODO performance optimization by doing deltas for all shapes at same time
-      const steinerPoints: Array<{ x: number; y: number }> = samplePolygon(contour);
-
-      const vertexMesh: Array<[number, number]> = [];
-      try {
-        const triangulation = new poly2tri.SweepContext(contour);
-        triangulation.addPoints(steinerPoints);
-        triangulation.triangulate();
-        triangulation.getTriangles().forEach((t) => t.getPoints().forEach(({ x, y }) => vertexMesh.push([x, y])));
-      } catch (e: unknown) {
-        if (e instanceof poly2tri.PointError) {
-          // TODO dont update model from previous run once performance optimization complete
-        }
-      }
-
-      const geometry = new Geometry().addAttribute("aVertexPosition", vertexMesh.flat(), 2);
-      /* debug show mesh lines
-        .addAttribute(
-          "aGradient",
-          triangulation
-            .getTriangles()
-            .map((tri) => [
-              [1, 0, 0],
-              [0, 1, 0],
-              [0, 0, 1],
-            ])
-            .flat(2)
-        ); */
-      geometries.push(geometry);
+  private getStars(): Position[][] {
+    // TODO also check overlap within circles
+    const polygons = this.polygonsSimplified.map(
+      (polygon) => new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)))
+    );
+    const starsPerPolygon = [];
+    for (const polygon of polygons) {
+      const positions = new RandomSpaceFilling(polygon, [4, 10]);
+      const stars = positions.getPositions(10);
+      starsPerPolygon.push(stars);
     }
-    return geometries;
+    return starsPerPolygon;
   }
 
-  private getPolygons(): Array<Array<[number, number]>> {
+  private getStarShapedPolygons(): Array<Array<[number, number]>> {
     const polygonsUnionedScaled =
       this.clipper
         .offsetToPaths({
-          delta: -this.scalingFactor * 20 * this.dissolve,
-          offsetInputs: this.polygonsUnionedScaled.map((path) => {
+          delta: -this.scalingFactor * this.model.dissolve,
+          offsetInputs: this.polygonsSimplified.map((path) => {
             return {
               joinType: clipperLib.JoinType.Square,
               endType: clipperLib.EndType.ClosedPolygon,
-              data: path,
+              data: path.map(([x, y]) => ({
+                x: Math.round(x * this.scalingFactor),
+                y: Math.round(y * this.scalingFactor),
+              })),
             };
           }),
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? [];
-    const polygons = polygonsUnionedScaled.map((p) =>
+    const polygonsSimplifiedUnscaled = polygonsUnionedScaled.map((p) =>
       p.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
     );
+
+    const polygons: Array<Array<[number, number]>> = [];
+    for (const contourSimple of polygonsSimplifiedUnscaled) {
+      const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
+      const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 10, 200));
+      const contour = contourSmooth;
+
+      const starShape = polygon2starshape(
+        contour,
+        this.model.starShapeParams.innerOffset,
+        this.model.starShapeParams.roundness,
+        this.model.starShapeParams.wingLength
+      );
+      const scalingFactor = 10e7;
+      const simplifiedStarShape = simplify(
+        starShape.map(([x, y]) => ({ x, y })),
+        0.1
+      );
+      const starShapeScaled = simplifiedStarShape.map(({ x, y }) => ({
+        x: Math.round(x * scalingFactor),
+        y: Math.round(y * scalingFactor),
+      }));
+      const starShapesSimplified =
+        this.clipper
+          ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
+          .map((polygon) => polygon.map((p) => ({ x: p.x / scalingFactor, y: p.y / scalingFactor })))
+          .map((polygon) => simplify(polygon, 0.3).map(({ x, y }) => [x, y] as [number, number])) ?? [];
+
+      polygons.push(...starShapesSimplified);
+    }
+
     return polygons;
   }
 
-  public get polygonsSimplified(): Array<Array<[number, number]>> {
-    const simplePolygon = this.polygons
+  public getPolygonsSimplified(): Array<Array<[number, number]>> {
+    const simplePolygon = this.polygonsUnioned
       .map((polygon) => polygon.map(([x, y]) => ({ x, y })))
       .map((polygon) => simplify(polygon, 5, true))
       .map((polygon) => polygon.map(({ x, y }: { x: number; y: number }) => [x, y] as [number, number]));
     return simplePolygon;
   }
 
-  private getPolygonsUnionedScaled(): clipperLib.Path[] {
-    const { paths } = metaballsPaths(this.clipper, this.model.painShapes, { ...this.model });
+  private getPolygonsUnioned(): Array<Array<[number, number]>> {
+    const { paths } = metaballsPaths(this.clipper, this.model.shapeParams.painShapes, { ...this.model.shapeParams });
 
     const polygonsUnionedScaled =
       this.clipper
@@ -135,6 +152,8 @@ export class GeometryViewModel {
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? []; // filter out all holes, TODO consider area too
 
-    return polygonsUnionedScaled;
+    return polygonsUnionedScaled.map((path) =>
+      path.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
+    );
   }
 }
