@@ -1,29 +1,32 @@
 #version 300 es
 
-precision lowp float;
-precision lowp int;
+precision mediump float;
+precision mediump int;
 
-layout(std140) uniform;
+#define PATHS_MAX_LEN 100
+#define RANGES_MAX_LEN 15
+
+out vec4 outputColor;
+
+in vec2 vTextureCoord; //The coordinates of the current pixel
+uniform sampler2D uSampler; //The image data
+uniform sampler2D uBackdrop; // Backdrop texture with destination colors
+uniform vec2 uBackdrop_flipY;
+uniform vec4 inputSize;
+uniform vec4 outputFrame;
 
 uniform float gradientLength;
 uniform float innerColorStart; // the ratio with respect to gradientLength where the outer color is 100 % visible 
-uniform float alphaFallOutEnd; // the point where fading out should stop wrt gradient length, [0, 1]
+uniform float alphaFallOutEnd; // the point where fading out should stop wrt distance, [0, 1]
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
-uniform vec2 rendererBounds; // [renderer width, renderer height]
-uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
+uniform paths_ubo {
+  vec2 paths[PATHS_MAX_LEN];
+}; // flattened list of all paths of all polygons
+uniform ivec2 ranges[RANGES_MAX_LEN]; // a range of range specifies the slice of paths that forms a closed contour, [range.x, range.y)
+uniform int rangesLen; // exclusive, i.e. ranges[maxRangeIndex] is invalid
 
-uniform vec2 origin; // point where pain originates from
-uniform float time;
-uniform float frequencyHz;
-// 0: off, 1: linear-in, 2: linear-out, 3: soft
-uniform int animationType;
-
-in float d;
-in vec2 vertexPosition;
-
-out vec4 outputColor;
 
 // src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
@@ -67,52 +70,51 @@ vec3 rgb2hsl( in vec3 c ){
 	return vec3( h, s, l );
 }
 
-float linearIn(float state) {
-	if (state > 0.8) {
-		return 0.0;
-	}
-	return smoothstep(0.0, 0.8, state);
+float minimum_distance(vec2 v, vec2 w, vec2 p) {
+  // Return minimum distance between line segment vw and point p
+  float l2 = pow(w.x - v.x, 2.0) + pow(w.y - v.y, 2.0);  // i.e. |w-v|^2 -  avoid a sqrt
+  // Consider the line extending the segment, parameterized as v + t (w - v).
+  // We find projection of point p onto the line. 
+  // It falls where t = [(p-v) . (w-v)] / |w-v|^2
+  // We clamp t from [0,1] to handle points outside the segment vw.
+  float t = clamp(dot(p - v, w - v) / l2, 0., 1.);
+  vec2 projection = v + t * (w - v);  // Projection falls on the segment
+  return distance(p, projection);
 }
 
-float linearOut(float state) {
-	if (state < 0.2) {
-		return 0.0;
-	}
-	return smoothstep(0.2, 1.0, state); 
-}
+void main(void) {
+    outputColor = texture(uSampler, vTextureCoord);
+    if (outputColor.a == 0.0) return;
 
-float soft(float state) {
-	return 1. + -1.0 * pow(2.0 * state - 1.0, 2.);
-}
+    vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
-void main() {
-    float pct = smoothstep(0.0, gradientLength, d);
+    float dist = 1000000.0;
+    for (int n = 0; n < rangesLen; n++) {
+      ivec2 range = ranges[n];
 
-    float colorPct = smoothstep(0.0, gradientLength * innerColorStart, d);
+      for (int i = range.x; i < range.y - 1; i++) {
+        // at range.y - 1, to points to last path
+        vec2 from = paths[i];
+        vec2 to = paths[i + 1];
+        float minDist = minimum_distance(from, to, screenCoord);
+        dist = min(dist, minDist);
+      }
+
+      vec2 last = paths[range.y - 1];
+      vec2 first = paths[range.x];
+      float minDist = minimum_distance(last, first, screenCoord);
+      dist = min(dist, minDist);
+    }
+
+    float pct = smoothstep(0.0, gradientLength * innerColorStart, dist);
+    float innerColorPct = smoothstep(0.0, innerColorStart, pct);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
-    vec4 colorGradient = mix(outerColor, innerColor, colorPct);
+    vec4 colorGradient = mix(outerColor, innerColor, innerColorPct);
     
 	// 0 means background only, 1 means background not shining thorugh
-    float backgroundPct = smoothstep(0.0, gradientLength * alphaFallOutEnd * 0.9999, d);
+    float backgroundPct = smoothstep(0.0, gradientLength * alphaFallOutEnd, dist);
 
-	// add animation effects:
-	float maxDistanceToOrigin = length(textureBounds);
-	float distanceOriginCoord = distance(origin, vertexPosition);
-	float distanceRatio = distanceOriginCoord / maxDistanceToOrigin;
-	
-	float timeForOneRepetition = 1000. / frequencyHz;
-  	float state = mod(time + distanceRatio * 1000., timeForOneRepetition) / timeForOneRepetition; // -> [0, 1]
-	float visibility = 1.0;
-	if (animationType == 1) {
-		visibility = linearIn(state);
-	}
-	if (animationType == 2) {
-		visibility = linearOut(state);
-	}
-	if (animationType == 3) {
-		visibility = soft(state);
-	}
-
+    // pre-multiply alpha
     outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
 }

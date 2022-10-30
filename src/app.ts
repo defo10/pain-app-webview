@@ -20,6 +20,7 @@ import {
   Geometry,
   DRAW_MODES,
   Ticker,
+  Filter,
 } from "pixi.js";
 import simplify from "simplify-js";
 import "@pixi/math-extras";
@@ -43,9 +44,9 @@ const RESOLUTION = window.devicePixelRatio;
 settings.PREFER_ENV = ENV.WEBGL2;
 settings.MIPMAP_TEXTURES = MIPMAP_MODES.OFF; // no zooming so no advantage
 const DOWNSCALE_FACTOR = 1.0;
-settings.PRECISION_FRAGMENT = PRECISION.LOW;
-settings.PRECISION_VERTEX = PRECISION.LOW;
-settings.TARGET_FPMS = 30;
+settings.PRECISION_FRAGMENT = PRECISION.MEDIUM;
+settings.PRECISION_VERTEX = PRECISION.MEDIUM;
+settings.TARGET_FPMS = 1 / (30 * 1000);
 settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
 const renderer = autoDetectRenderer({
@@ -119,7 +120,7 @@ const updatedModel = (oldModel?: Model): Model => {
 let model: Model = updatedModel();
 let geometryVM: undefined | GeometryViewModel;
 const ubo = UniformGroup.uboFrom({
-  paths: [],
+  paths: Float32Array.from([]),
 });
 const shader = gradientShaderFrom({
   backgroundTexture: null,
@@ -196,12 +197,16 @@ const animate = (time: number): void => {
   }
 
   if (geometryVM.wasUpdated) {
-    const polygons = geometryVM.polygonsSimplified;
-    const ranges = getRanges(polygons.map((arr) => arr.flat())).flat();
-    ubo.uniforms.paths = polygons.flat(2);
+    const polygons = geometryVM.polygons.map((p) => p.map(([x, y]) => ({ x, y })));
+    debugPolygon(polygons[0], "before simplification");
+    const polygonsSimplified = polygons.map((p) => simplify(p, 1, true));
+    debugPolygon(polygonsSimplified[0], "after simplification");
+    const polygonsSimplifiedFlat = polygonsSimplified.map((p) => p.map(({ x, y }) => [x, y]).flat());
+    const ranges = getRanges(polygonsSimplifiedFlat).flat();
+    ubo.uniforms.paths = Float32Array.from(polygonsSimplifiedFlat.flat());
     ubo.update();
 
-    shader.uniforms.ranges = new Int16Array(ranges);
+    shader.uniforms.ranges = new Int32Array(ranges);
     shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
   }
 
@@ -257,6 +262,8 @@ const animate = (time: number): void => {
   const graphics = new Graphics();
   graphics.beginFill(0xffffff, 1);
   geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
+  const filter = gradientShaderFrom(shader.uniforms);
+  graphics.filters = [filter];
   graphics.endFill();
   meshesContainer.addChild(graphics);
 
