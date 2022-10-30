@@ -239,7 +239,7 @@ const animate = (time: number): void => {
     graphics.beginFill(0xffffff, 1);
     geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
     const filter = gradientShaderFrom(shader.uniforms);
-    filter.resolution = 1;
+    filter.resolution = RESOLUTION;
     graphics.filters = [filter];
     graphics.endFill();
     meshesContainer.addChild(graphics);
