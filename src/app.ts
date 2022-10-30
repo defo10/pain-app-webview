@@ -19,6 +19,7 @@ import {
   UniformGroup,
   Geometry,
   DRAW_MODES,
+  Ticker,
 } from "pixi.js";
 import simplify from "simplify-js";
 import "@pixi/math-extras";
@@ -51,7 +52,12 @@ const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
+  antialias: false,
+  useContextAlpha: false,
 });
+
+const ticker = Ticker.system;
+ticker.maxFPS = 60;
 // async inits
 const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
@@ -177,7 +183,7 @@ const init = async (): Promise<void> => {
     sh.uniforms.rendererBounds = new Float32Array([renderer.width, renderer.height]);
   }
 
-  animate(performance.now());
+  ticker.add(animate);
 };
 
 const animate = (time: number): void => {
@@ -225,22 +231,25 @@ const animate = (time: number): void => {
   // otherwise this leads to random flicker of the underlying star shapes
   // around the edges
   if (model.dissolve > 0) {
-    for (const pos of geometryVM.stars.flat()) {
-      const point = new Point(...pos.center);
-      const star = starshape(
-        point,
-        pos.radius,
-        valueFromSlider("outerOffsetRatio"),
-        valueFromSlider("roundness"),
-        valueFromSlider("wingLength")
-      );
-      const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
-      const centroid = polygon.centroid;
-      const geom = new Geometry()
-        .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
-        .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
+    const uStar = starshape(
+      new Point(0, 0),
+      10,
+      valueFromSlider("outerOffsetRatio"),
+      valueFromSlider("roundness"),
+      valueFromSlider("wingLength")
+    );
 
-      const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+    const polygon = new EuclidPolygon(...uStar.map(([x, y]) => new EuclidPoint(x, y)));
+    const centroid = polygon.centroid;
+    const uGeom = new Geometry()
+      .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...uStar.flat()], 2)
+      .addAttribute("aDistance", [1.0, ...uStar.flat().map((_) => 0)], 1);
+
+    for (const pos of geometryVM.stars.flat()) {
+      const geometry = uGeom.clone();
+      const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+      mesh.position.set(...pos.center);
+      mesh.scale.set(pos.radius / 10);
       meshesContainer.addChild(mesh);
     }
   }
@@ -290,7 +299,6 @@ const animate = (time: number): void => {
   }
 
   renderer.render(scene);
-  requestAnimationFrame(animate);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
