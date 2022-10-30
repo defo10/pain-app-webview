@@ -146,6 +146,7 @@ export function polygon2starshape(
   outerPoints: Array<[number, number]>;
 } {
   const starshape: EuclidPoint[] = [];
+  // outerPoints forms the star shape enclosing polygon, which is used for coloring the star shape
   const outerPoints: Array<[number, number]> = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
   const numWings = Math.floor(polygon.circumference / wingLength);
@@ -163,27 +164,34 @@ export function polygon2starshape(
     // for terminoloy, consider this strip as a horizontal line with innerPoint being on the line,
     // and outerPoint being shifted north by outerOffset, i.e. outerPoint is the wing tip
     // the start (i = 0) is on the right side and goes left/ccw
-    const outerPoint = polygon.at(midPointI).add(perpendicularVectorAt(polygon, midPointI).scale(outerOffset));
+    const outerPointBaseline = polygon.at(midPointI);
+    const uvOuterPoint = perpendicularVectorAt(polygon, midPointI);
+    const outerPoint = outerPointBaseline.add(uvOuterPoint.scale(outerOffset));
     const horizontalDelta: number = lerp(1e-3, midDelta * 0.7, roundnessRatio);
     // this is the ratio applied to outerOffset to change the heights of the points defining
     // the left and right side of the wing
     const verticalOffsetRatio: number = lerp(0.6, 0.8, roundnessRatio);
 
-    const outerPointLeft = polygon
-      .at(midPointI + horizontalDelta)
-      .add(perpendicularVectorAt(polygon, midPointI + horizontalDelta).scale(outerOffset * verticalOffsetRatio));
-    const outerPointRight = polygon
-      .at(midPointI - horizontalDelta)
-      .add(perpendicularVectorAt(polygon, midPointI - horizontalDelta).scale(outerOffset * verticalOffsetRatio));
+    const outerPointLeftBaseline = polygon.at(midPointI + horizontalDelta);
+    const uvOuterPointLeft = perpendicularVectorAt(polygon, midPointI + horizontalDelta);
+    const outerPointLeft = outerPointLeftBaseline.add(uvOuterPointLeft.scale(outerOffset * verticalOffsetRatio));
+
+    const outerPointRightBaseline = polygon.at(midPointI - horizontalDelta);
+    const uvOuterPointRight = perpendicularVectorAt(polygon, midPointI - horizontalDelta);
+    const outerPointRight = outerPointRightBaseline.add(uvOuterPointRight.scale(outerOffset * verticalOffsetRatio));
 
     starshape.push(innerPoint);
     const maxOffset = 0.5 * outerOffset;
+    // do not add outer points if by they are too far away from the outer point. This happens
+    // when outer point is close to a corner, which distorts outerPointLeft and outerPointRight
     if (dist([outerPointRight.x, outerPointRight.y], [outerPoint.x, outerPoint.y]) < maxOffset)
       starshape.push(outerPointRight);
     starshape.push(outerPoint);
     if (dist([outerPointLeft.x, outerPointLeft.y], [outerPoint.x, outerPoint.y]) < maxOffset)
       starshape.push(outerPointLeft);
-    outerPoints.push([outerPoint.x, outerPoint.y]);
+
+    const hullPoint = outerPointBaseline.add(uvOuterPoint.scale(outerOffset === 0 ? 2 : outerOffset * 1.2));
+    outerPoints.push([hullPoint.x, hullPoint.y]);
   }
   const starShapesFlat = starshape.map(({ x, y }) => [x, y]);
   const curveInterpolator = new CurveInterpolator(
@@ -209,9 +217,9 @@ export function starshape(
   const contour = circlePolygon(center, innerRadius);
   const points = polygon2starshape(
     contour.map(({ x, y }) => [x, y]),
-    outerOffset,
+    outerOffset / 2,
     roundnessRatio,
-    wingLength / 5
+    wingLength / 2
   );
   return points.points;
 }

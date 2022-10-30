@@ -85,7 +85,7 @@ export class GeometryViewModel {
     );
     const starsPerPolygon = [];
     for (const polygon of polygons) {
-      const positions = new RandomSpaceFilling(polygon, [1, 5]);
+      const positions = new RandomSpaceFilling(polygon, [2, 7]);
       const stars = positions.getPositions(0.2);
       starsPerPolygon.push(stars);
     }

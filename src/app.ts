@@ -12,7 +12,6 @@ import {
   MIPMAP_MODES,
   Point,
   PRECISION,
-  RenderTexture,
   settings,
   Sprite,
   Texture,
@@ -20,21 +19,15 @@ import {
   Geometry,
   DRAW_MODES,
   Ticker,
-  Filter,
 } from "pixi.js";
-import simplify from "simplify-js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { GeometryViewModel } from "./viewmodel";
-import { Model, StarShapeParameters } from "./model";
+import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
-import { starshape, polygon2starshape, SimplePolygon } from "./polygon/polygons";
+import { starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
-import offsetPolygon from "offset-polygon";
-import { debug, debugPolygon } from "./debug";
-import { CurveInterpolator } from "curve-interpolator";
-import { clamp } from "./polygon/utils";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -51,6 +44,8 @@ settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
+  width: document.getElementById("animations-canvas")?.clientWidth,
+  height: document.getElementById("animations-canvas")?.clientHeight,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
   antialias: false,
@@ -206,7 +201,7 @@ const animate = (time: number): void => {
     shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
   }
 
-  const gradientLength = (_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) * 2;
+  const gradientLength = (_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) * 1;
   if (shader.uniforms.gradientLength !== gradientLength) shader.uniforms.gradientLength = gradientLength;
 
   if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
@@ -245,13 +240,17 @@ const animate = (time: number): void => {
     const uGeom = new Geometry()
       .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...uStar.flat()], 2)
       .addAttribute("aDistance", [1.0, ...uStar.flat().map((_) => 0)], 1);
+    const geometry = uGeom;
+    const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+
+    const renderTexture = renderer.generateTexture(mesh);
 
     for (const pos of geometryVM.stars.flat()) {
-      const geometry = uGeom.clone();
-      const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-      mesh.position.set(...pos.center);
-      mesh.scale.set(pos.radius / 10);
-      meshesContainer.addChild(mesh);
+      const sprite = new Sprite(renderTexture);
+      sprite.anchor.set(0.5);
+      sprite.position.set(...pos.center);
+      sprite.scale.set(pos.radius / 10);
+      meshesContainer.addChild(sprite);
     }
   }
 
@@ -260,6 +259,7 @@ const animate = (time: number): void => {
     graphics.beginFill(0xffffff, 1);
     geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
     const filter = gradientShaderFrom(shader.uniforms);
+    filter.resolution = 1;
     graphics.filters = [filter];
     graphics.endFill();
     meshesContainer.addChild(graphics);
