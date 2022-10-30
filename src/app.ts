@@ -118,11 +118,6 @@ const ubo = UniformGroup.uboFrom({
   paths: Float32Array.from([]),
 });
 const shader = gradientShaderFrom({
-  backgroundTexture: null,
-  // width is the css pixel width after the backgroundImage was already scaled to fit bounds of canvas
-  // which is multiplied by the resolution to account for hidpi
-  textureBounds: null,
-  rendererBounds: null,
   gradientLength: 0,
   innerColorStart: 0,
   alphaFallOutEnd: 0,
@@ -131,16 +126,9 @@ const shader = gradientShaderFrom({
   paths_ubo: ubo,
   ranges: new Int16Array([0, 1]),
   rangesLen: 1,
-  time: 0,
-  frequencyHz: 0,
-  origin: [0, 0, 0],
-  animationType: 0,
 });
 
 const starShader = starShaderFrom({
-  backgroundTexture: null,
-  textureBounds: null,
-  rendererBounds: null,
   innerColorStart: 0,
   alphaFallOutEnd: 0,
   outerColorHSL: [0, 0, 0],
@@ -170,14 +158,6 @@ const init = async (): Promise<void> => {
   );
   backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
   scene.addChild(backgroundImage);
-
-  for (const sh of [shader, starShader]) {
-    sh.uniforms.textureBounds = new Float32Array([
-      backgroundImage.width * RESOLUTION,
-      backgroundImage.height * RESOLUTION,
-    ]);
-    sh.uniforms.rendererBounds = new Float32Array([renderer.width, renderer.height]);
-  }
 
   ticker.add(animate);
 };

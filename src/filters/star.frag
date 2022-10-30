@@ -9,9 +9,6 @@ uniform float alphaFallOutEnd; // the point where fading out should stop wrt gra
 uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
-uniform vec2 rendererBounds; // [renderer width, renderer height]
-uniform vec2 textureBounds; // [bgTexture width, bgTexture height]
-
 in float vDistance;
 in vec2 vertexPosition;
 
