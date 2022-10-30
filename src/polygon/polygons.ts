@@ -145,6 +145,7 @@ export function polygon2starshape(
   const starshape: EuclidPoint[] = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
   const numWings = Math.floor(polygon.circumference / wingLength);
+  if (numWings < 3) return contour;
   const step = 1.0 / numWings;
   for (let i = 0.0; i < 1.0; i += step) {
     const midDelta = 0.5 * step;
@@ -185,36 +186,13 @@ export function starshape(
   roundnessRatio: number,
   wingLength: number
 ): Array<[number, number]> {
-  const starshape: EuclidPoint[] = [];
-  const outerOffset = outerOffsetRatio * innerRadius * 2;
-  const contour = circlePolygon(center, innerRadius + outerOffset);
-  const polygon = new EuclidPolygon(...contour.map(({ x, y }) => new EuclidPoint(x, y)));
-  const numWings = Math.floor(polygon.circumference / wingLength);
-  const step = 1.0 / numWings;
-  const maxRoundness = Math.min(outerOffset, polygon.circumference * step * 0.25);
-  const roundness = Math.max(roundnessRatio * maxRoundness, 0.1);
-  for (let i = 0.0; i < 1.0; i += step) {
-    const outerPoint = polygon.at(i);
-
-    const outerPointPerpendicular = perpendicularVectorAt(polygon, i); // point outwards
-    const scaledOuterPointPerpendicular = outerPointPerpendicular.scale(roundness);
-    const wingCenter = outerPoint.subtract(scaledOuterPointPerpendicular);
-    starshape.push(
-      wingCenter.subtract(scaledOuterPointPerpendicular.rotate(Math.PI / 2)),
-      outerPoint,
-      wingCenter.add(scaledOuterPointPerpendicular.rotate(Math.PI / 2))
-    );
-
-    const midPointI = i + step / 2;
-    const pointAtMidpointI = polygon.at(midPointI);
-    const midpointPerpendicularUV = perpendicularVectorAt(polygon, midPointI);
-    const innerPoint = pointAtMidpointI.subtract(midpointPerpendicularUV.scale(outerOffset));
-    starshape.push(innerPoint);
-  }
-  const curveInterpolator = new CurveInterpolator(
-    starshape.map(({ x, y }) => [x, y]),
-    { tension: 0.0 }
+  const outerOffset = outerOffsetRatio * innerRadius * 4;
+  const contour = circlePolygon(center, innerRadius);
+  const points = polygon2starshape(
+    contour.map(({ x, y }) => [x, y]),
+    outerOffset,
+    roundnessRatio,
+    wingLength / 5
   );
-  const points = curveInterpolator.getPoints(numWings * 2 * 10);
-  return [...points, points[0]];
+  return points;
 }

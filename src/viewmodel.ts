@@ -1,4 +1,4 @@
-import { Geometry, Point } from "pixi.js";
+import { Geometry, Point, Polygon as PixiPolygon } from "pixi.js";
 import { Model, ShapeParameters } from "./model";
 import * as clipperLib from "js-angusj-clipper";
 import { metaballsPaths, samplePolygon } from "./polygon";
@@ -9,7 +9,8 @@ import { Polygon as EuclidPolygon, Point as EuclidPoint, Circle } from "@mathigo
 import { polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import { CurveInterpolator } from "curve-interpolator";
-const smoothstep = require("interpolation").smoothstep;
+import { debug } from "./debug";
+const lerp = require("interpolation").lerp;
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
 export class GeometryViewModel {
@@ -65,36 +66,47 @@ export class GeometryViewModel {
     );
     const starsPerPolygon = [];
     for (const polygon of polygons) {
-      const positions = new RandomSpaceFilling(polygon, [2, 5]);
-      const stars = positions.getPositions(0.3);
+      const positions = new RandomSpaceFilling(polygon, [1, 5]);
+      const stars = positions.getPositions(0.2);
       starsPerPolygon.push(stars);
     }
     return starsPerPolygon;
   }
 
   private getStarShapedPolygons(): Array<Array<[number, number]>> {
-    const polygonsUnionedScaled =
+    const polygonsWithoutSmallParts = this.polygonsSimplified
+      .filter((polygon) => polygon.length > 3)
+      .map((polygon) => ({ polygon, area: new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y))).area }))
+      .filter(({ polygon, area }) => area > 100);
+
+    // dissolve is given as offset in the polygon's units. Completetly dissolving would be mean
+    // that it has the biggest distance to the polygon's centerline. This is hard to calculate
+    // so we use the polygon's area as a proxy.
+    const maxDissolve = Math.pow(Math.max(...polygonsWithoutSmallParts.map(({ area }) => area)) / 2, 1 / 2);
+
+    const polygonsDeflatedScaled =
       this.clipper
         .offsetToPaths({
-          delta: -this.scalingFactor * this.model.dissolve,
-          offsetInputs: this.polygonsSimplified.map((path) => {
+          delta: -this.scalingFactor * this.model.dissolve * maxDissolve,
+          offsetInputs: polygonsWithoutSmallParts.map(({ polygon }) => {
             return {
               joinType: clipperLib.JoinType.Square,
               endType: clipperLib.EndType.ClosedPolygon,
-              data: path.map(([x, y]) => ({
+              data: polygon.map(([x, y]) => ({
                 x: Math.round(x * this.scalingFactor),
                 y: Math.round(y * this.scalingFactor),
               })),
             };
           }),
         })
-        ?.filter((p) => this.clipper.orientation(p)) ?? [];
-    const polygonsSimplified = polygonsUnionedScaled.map((p) =>
+        ?.filter((p) => this.clipper.orientation(p))
+        ?.filter((p) => this.clipper.area(p) > this.scalingFactor * 100) ?? [];
+    const polygonsDeflated = polygonsDeflatedScaled.map((p) =>
       p.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
     );
 
     const polygons: Array<Array<[number, number]>> = [];
-    for (const contourSimple of polygonsSimplified) {
+    for (const contourSimple of polygonsDeflated) {
       // simplified polygon leads to softer edges because there are fewer point constraints
       const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
       const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 10, 200));
@@ -102,15 +114,15 @@ export class GeometryViewModel {
 
       const starShape = polygon2starshape(
         contour,
-        smoothstep(0, 50, this.model.starShapeParams.outerOffsetRatio),
+        lerp(0, 10, this.model.starShapeParams.outerOffsetRatio),
         this.model.starShapeParams.roundness,
         this.model.starShapeParams.wingLength
       );
-      const scalingFactor = 10e7;
       const simplifiedStarShape = simplify(
         starShape.map(([x, y]) => ({ x, y })),
         0.1
       );
+      const scalingFactor = 10e7;
       const starShapeScaled = simplifiedStarShape.map(({ x, y }) => ({
         x: Math.round(x * scalingFactor),
         y: Math.round(y * scalingFactor),
@@ -118,8 +130,8 @@ export class GeometryViewModel {
       const starShapesSimplified =
         this.clipper
           ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
-          .map((polygon) => polygon.map((p) => ({ x: p.x / scalingFactor, y: p.y / scalingFactor })))
-          .map((polygon) => simplify(polygon, 0.3).map(({ x, y }) => [x, y] as [number, number])) ?? [];
+          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number]))
+          .filter((polygon) => polygon.length >= 3) ?? [];
 
       polygons.push(...starShapesSimplified);
     }
