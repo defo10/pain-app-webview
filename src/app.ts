@@ -44,8 +44,6 @@ settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
-  width: document.getElementById("animations-canvas")?.clientWidth,
-  height: document.getElementById("animations-canvas")?.clientHeight,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
   antialias: false,
