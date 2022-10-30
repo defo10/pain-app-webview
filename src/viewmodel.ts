@@ -9,6 +9,7 @@ import { Polygon as EuclidPolygon, Point as EuclidPoint, Circle } from "@mathigo
 import { polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import { CurveInterpolator } from "curve-interpolator";
+const smoothstep = require("interpolation").smoothstep;
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
 export class GeometryViewModel {
@@ -29,7 +30,7 @@ export class GeometryViewModel {
 
     this.polygonsUnioned = this.getPolygonsUnioned();
     this.polygonsSimplified = this.getPolygonsSimplified();
-    this.stars = this.getStars();
+    this.stars = this.getStarPositions();
     this.polygons = this.getStarShapedPolygons();
     // this.geometry = this.getGeometry();
   }
@@ -42,28 +43,30 @@ export class GeometryViewModel {
       _.isEqual(staleModel.shapeParams, model.shapeParams) && !model.shapeParams.painShapesDragging.some((p) => p);
     this.polygonsUnioned = hasSamePath ? this.polygonsUnioned : this.getPolygonsUnioned();
     this.polygonsSimplified = hasSamePath ? this.polygonsSimplified : this.getPolygonsSimplified();
-    this.stars = hasSamePath ? this.stars : this.getStars();
+    this.stars = hasSamePath ? this.stars : this.getStarPositions();
 
     const hasSameDissolve = staleModel.dissolve === model.dissolve;
-    this.polygons = hasSameDissolve && hasSamePath ? this.polygons : this.getStarShapedPolygons();
+    const hasSameStarShapeParams = _.isEqual(staleModel.starShapeParams, model.starShapeParams);
+    this.polygons =
+      hasSameDissolve && hasSameStarShapeParams && hasSamePath ? this.polygons : this.getStarShapedPolygons();
 
     /*
     const hasSameGeometry = hasSameDissolve && hasSamePath;
     this.geometry = hasSameGeometry ? this.geometry : this.getGeometry();
     */
     // this.wasUpdated = !(hasSamePath && hasSameDissolve && hasSameGeometry);
-    this.wasUpdated = !(hasSamePath && hasSameDissolve);
+    this.wasUpdated = !(hasSamePath && hasSameStarShapeParams && hasSameDissolve);
   }
 
-  private getStars(): Position[][] {
+  private getStarPositions(): Position[][] {
     // TODO also check overlap within circles
     const polygons = this.polygonsSimplified.map(
       (polygon) => new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)))
     );
     const starsPerPolygon = [];
     for (const polygon of polygons) {
-      const positions = new RandomSpaceFilling(polygon, [4, 10]);
-      const stars = positions.getPositions(10);
+      const positions = new RandomSpaceFilling(polygon, [2, 5]);
+      const stars = positions.getPositions(0.3);
       starsPerPolygon.push(stars);
     }
     return starsPerPolygon;
@@ -86,19 +89,20 @@ export class GeometryViewModel {
           }),
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? [];
-    const polygonsSimplifiedUnscaled = polygonsUnionedScaled.map((p) =>
+    const polygonsSimplified = polygonsUnionedScaled.map((p) =>
       p.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
     );
 
     const polygons: Array<Array<[number, number]>> = [];
-    for (const contourSimple of polygonsSimplifiedUnscaled) {
+    for (const contourSimple of polygonsSimplified) {
+      // simplified polygon leads to softer edges because there are fewer point constraints
       const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
       const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 10, 200));
       const contour = contourSmooth;
 
       const starShape = polygon2starshape(
         contour,
-        this.model.starShapeParams.innerOffset,
+        smoothstep(0, 50, this.model.starShapeParams.outerOffsetRatio),
         this.model.starShapeParams.roundness,
         this.model.starShapeParams.wingLength
       );

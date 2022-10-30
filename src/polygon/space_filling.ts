@@ -1,4 +1,4 @@
-import { Polygon as EuclidPolygon, Point as EuclidPoint } from "@mathigon/euclid";
+import { Polygon as EuclidPolygon, Point as EuclidPoint, Circle } from "@mathigon/euclid";
 import { Point } from "pixi.js";
 import { circlePolygon } from "./polygons";
 
@@ -25,18 +25,25 @@ export class RandomSpaceFilling {
     this.radiusBounds = radiusBounds;
   }
 
-  public getPositions(sampleSize: number): Position[] {
+  public getPositions(sampleSizePerUnitSquare: number): Position[] {
+    const sampleSize = sampleSizePerUnitSquare * this.contour.area;
     const positions: Position[] = [];
+    const circles: Circle[] = [];
     let attempt = 0;
     while (positions.length < sampleSize && attempt < 100) {
       const position = this.randomPosition();
-      const circleSamples = circlePolygon(new Point(...position.center), position.radius, Math.PI / 4);
+      const circleSamples = circlePolygon(new Point(...position.center), position.radius, Math.PI / 4).map(
+        ({ x, y }) => new EuclidPoint(x, y)
+      );
+      const center = new EuclidPoint(...position.center);
 
       if (
         this.contour.contains(new EuclidPoint(...position.center)) &&
-        circleSamples.every(({ x, y }) => this.contour.contains(new EuclidPoint(x, y)))
+        circleSamples.every((point) => this.contour.contains(point)) &&
+        !circleSamples.some((point) => circles.some((circle) => circle.contains(point)))
       ) {
         positions.push(position);
+        circles.push(new Circle(center, position.radius));
       }
 
       attempt += 1;

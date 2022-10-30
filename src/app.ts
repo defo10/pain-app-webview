@@ -100,7 +100,7 @@ const updatedModel = (oldModel?: Model): Model => {
         innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
     },
     starShapeParams: {
-      innerOffset: valueFromSlider("innerOffset"),
+      outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
       roundness: valueFromSlider("roundness"),
       wingLength: valueFromSlider("wingLength"),
     },
@@ -221,23 +221,28 @@ const animate = (time: number): void => {
   starShader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
   starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
-  for (const pos of geometryVM.stars.flat()) {
-    const point = new Point(...pos.center);
-    const star = starshape(
-      point,
-      pos.radius,
-      valueFromSlider("innerOffset"),
-      valueFromSlider("roundness"),
-      valueFromSlider("wingLength")
-    );
-    const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
-    const centroid = polygon.centroid;
-    const geom = new Geometry()
-      .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
-      .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
+  // only show underlying star shapes if overlying polygon was shrunk
+  // otherwise this leads to random flicker of the underlying star shapes
+  // around the edges
+  if (model.dissolve > 0) {
+    for (const pos of geometryVM.stars.flat()) {
+      const point = new Point(...pos.center);
+      const star = starshape(
+        point,
+        pos.radius,
+        valueFromSlider("outerOffsetRatio"),
+        valueFromSlider("roundness"),
+        valueFromSlider("wingLength")
+      );
+      const polygon = new EuclidPolygon(...star.map(([x, y]) => new EuclidPoint(x, y)));
+      const centroid = polygon.centroid;
+      const geom = new Geometry()
+        .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...star.flat()], 2)
+        .addAttribute("aDistance", [1.0, ...star.flat().map((_) => 0)], 1);
 
-    const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-    meshesContainer.addChild(mesh);
+      const mesh = new Mesh(geom, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+      meshesContainer.addChild(mesh);
+    }
   }
 
   const graphics = new Graphics();
@@ -257,29 +262,31 @@ const animate = (time: number): void => {
   scene.addChild(meshesContainer);
   staleMeshes = meshesContainer;
 
-  for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
-    const painShape = model.shapeParams.painShapes[i];
-    const circle = new Graphics();
-    circle.beginFill(0xffffff, 0.00001);
-    circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
-    circle.endFill();
-    circle.interactive = true;
-    circle.buttonMode = true;
-    circle.on("pointerdown", (e) => {
-      model.shapeParams.painShapesDragging[i] = true;
-    });
-    circle.on("pointermove", (e) => {
-      if (model.shapeParams.painShapesDragging[i]) {
+  if (model.dissolve === 0) {
+    for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
+      const painShape = model.shapeParams.painShapes[i];
+      const circle = new Graphics();
+      circle.beginFill(0xffffff, 0.00001);
+      circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
+      circle.endFill();
+      circle.interactive = true;
+      circle.buttonMode = true;
+      circle.on("pointerdown", (e) => {
+        model.shapeParams.painShapesDragging[i] = true;
+      });
+      circle.on("pointermove", (e) => {
+        if (model.shapeParams.painShapesDragging[i]) {
+          painShape.position.x = e.data.global.x;
+          painShape.position.y = e.data.global.y;
+        }
+      });
+      circle.on("pointerup", (e) => {
         painShape.position.x = e.data.global.x;
         painShape.position.y = e.data.global.y;
-      }
-    });
-    circle.on("pointerup", (e) => {
-      painShape.position.x = e.data.global.x;
-      painShape.position.y = e.data.global.y;
-      model.shapeParams.painShapesDragging[i] = false;
-    });
-    meshesContainer.addChild(circle);
+        model.shapeParams.painShapesDragging[i] = false;
+      });
+      meshesContainer.addChild(circle);
+    }
   }
 
   renderer.render(scene);

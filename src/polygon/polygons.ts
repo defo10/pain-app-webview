@@ -7,7 +7,6 @@ import { CurveInterpolator } from "curve-interpolator";
 import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 import offsetPolygon from "offset-polygon";
 import { debug, debugPolygon } from "../debug";
-const smoothstep = require("interpolation").smoothstep;
 const lerp = require("interpolation").lerp;
 
 export type SimplePolygon = Point[];
@@ -182,11 +181,12 @@ export function polygon2starshape(
 export function starshape(
   center: Point,
   innerRadius: number,
-  outerOffset: number,
+  outerOffsetRatio: number,
   roundnessRatio: number,
   wingLength: number
 ): Array<[number, number]> {
   const starshape: EuclidPoint[] = [];
+  const outerOffset = outerOffsetRatio * innerRadius * 2;
   const contour = circlePolygon(center, innerRadius + outerOffset);
   const polygon = new EuclidPolygon(...contour.map(({ x, y }) => new EuclidPoint(x, y)));
   const numWings = Math.floor(polygon.circumference / wingLength);
