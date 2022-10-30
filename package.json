@@ -15,6 +15,7 @@
   "author": "Daniel Stachnik",
   "license": "ISC",
   "devDependencies": {
+    "@types/hull.js": "^1.0.2",
     "@types/lodash": "^4.14.186",
     "@typescript-eslint/eslint-plugin": "^5.38.1",
     "@typescript-eslint/parser": "^5.38.1",
@@ -44,6 +45,7 @@
     "curve-interpolator": "^2.0.8",
     "denque": "^2.1.0",
     "gl-matrix": "^3.4.3",
+    "hull.js": "^1.0.2",
     "interpolation": "^1.0.0",
     "js-angusj-clipper": "^1.2.1",
     "lodash": "^4.17.21",

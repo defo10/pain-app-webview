@@ -1,6 +1,6 @@
 import _ from "lodash";
 import * as gl from "gl-matrix";
-import { bounds, clamp, lerpPoints } from "./utils";
+import { bounds, clamp, dist, lerpPoints } from "./utils";
 import { Point, Polygon as PixiPolygon } from "pixi.js";
 import "@pixi/math-extras";
 import { CurveInterpolator } from "curve-interpolator";
@@ -141,11 +141,19 @@ export function polygon2starshape(
   outerOffset: number,
   roundnessRatio: number,
   wingLength: number
-): Array<[number, number]> {
+): {
+  points: Array<[number, number]>;
+  outerPoints: Array<[number, number]>;
+} {
   const starshape: EuclidPoint[] = [];
+  const outerPoints: Array<[number, number]> = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
   const numWings = Math.floor(polygon.circumference / wingLength);
-  if (numWings < 3) return contour;
+  if (numWings < 3)
+    return {
+      points: contour,
+      outerPoints: contour,
+    };
   const step = 1.0 / numWings;
   for (let i = 0.0; i < 1.0; i += step) {
     const midDelta = 0.5 * step;
@@ -168,15 +176,26 @@ export function polygon2starshape(
       .at(midPointI - horizontalDelta)
       .add(perpendicularVectorAt(polygon, midPointI - horizontalDelta).scale(outerOffset * verticalOffsetRatio));
 
-    starshape.push(innerPoint, outerPointRight, outerPoint, outerPointLeft);
+    starshape.push(innerPoint);
+    const maxOffset = 0.5 * outerOffset;
+    if (dist([outerPointRight.x, outerPointRight.y], [outerPoint.x, outerPoint.y]) < maxOffset)
+      starshape.push(outerPointRight);
+    starshape.push(outerPoint);
+    if (dist([outerPointLeft.x, outerPointLeft.y], [outerPoint.x, outerPoint.y]) < maxOffset)
+      starshape.push(outerPointLeft);
+    outerPoints.push([outerPoint.x, outerPoint.y]);
   }
+  const starShapesFlat = starshape.map(({ x, y }) => [x, y]);
   const curveInterpolator = new CurveInterpolator(
-    starshape.map(({ x, y }) => [x, y]),
+    [
+      ...starShapesFlat,
+      lerpPoints(starShapesFlat.at(-1) as [number, number], starShapesFlat[0] as [number, number], 0.9),
+    ],
     { tension: 0.0 }
   );
   let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 10);
   points = [...points, points[0]];
-  return points;
+  return { points, outerPoints };
 }
 
 export function starshape(
@@ -194,5 +213,5 @@ export function starshape(
     roundnessRatio,
     wingLength / 5
   );
-  return points;
+  return points.points;
 }

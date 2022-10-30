@@ -197,20 +197,16 @@ const animate = (time: number): void => {
   }
 
   if (geometryVM.wasUpdated) {
-    const polygons = geometryVM.polygons.map((p) => p.map(([x, y]) => ({ x, y })));
-    debugPolygon(polygons[0], "before simplification");
-    const polygonsSimplified = polygons.map((p) => simplify(p, 1, true));
-    debugPolygon(polygonsSimplified[0], "after simplification");
-    const polygonsSimplifiedFlat = polygonsSimplified.map((p) => p.map(({ x, y }) => [x, y]).flat());
-    const ranges = getRanges(polygonsSimplifiedFlat).flat();
-    ubo.uniforms.paths = Float32Array.from(polygonsSimplifiedFlat.flat());
+    const polygonsOuterHulls = geometryVM.hullPolygons;
+    const ranges = getRanges(polygonsOuterHulls.map((arr) => arr.flat())).flat();
+    ubo.uniforms.paths = Float32Array.from(polygonsOuterHulls.flat(2));
     ubo.update();
 
     shader.uniforms.ranges = new Int32Array(ranges);
     shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
   }
 
-  const gradientLength = _.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0 * 2;
+  const gradientLength = (_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) * 2;
   if (shader.uniforms.gradientLength !== gradientLength) shader.uniforms.gradientLength = gradientLength;
 
   if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
@@ -259,13 +255,15 @@ const animate = (time: number): void => {
     }
   }
 
-  const graphics = new Graphics();
-  graphics.beginFill(0xffffff, 1);
-  geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
-  const filter = gradientShaderFrom(shader.uniforms);
-  graphics.filters = [filter];
-  graphics.endFill();
-  meshesContainer.addChild(graphics);
+  if (geometryVM.polygons.length > 0) {
+    const graphics = new Graphics();
+    graphics.beginFill(0xffffff, 1);
+    geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
+    const filter = gradientShaderFrom(shader.uniforms);
+    graphics.filters = [filter];
+    graphics.endFill();
+    meshesContainer.addChild(graphics);
+  }
 
   if (staleMeshes) {
     scene.removeChild(staleMeshes);

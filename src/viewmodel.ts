@@ -9,7 +9,7 @@ import { Polygon as EuclidPolygon, Point as EuclidPoint, Circle } from "@mathigo
 import { polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import { CurveInterpolator } from "curve-interpolator";
-import { debug } from "./debug";
+import { debug, debugPolygon } from "./debug";
 const lerp = require("interpolation").lerp;
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
@@ -18,6 +18,8 @@ export class GeometryViewModel {
   private readonly clipper: clipperLib.ClipperLibWrapper;
   private model: Model;
   private polygonsUnioned: Array<Array<[number, number]>> = [];
+  private polygonsUnionedScaled: clipperLib.Path[] = [];
+  private hull: Array<Array<[number, number]>> = [];
   public stars: Position[][] = [];
   public polygonsSimplified: Array<Array<[number, number]>> = [];
   public polygons: Array<Array<[number, number]>> = [];
@@ -29,6 +31,7 @@ export class GeometryViewModel {
     this.clipper = clipper;
     this.wasUpdated = true;
 
+    this.polygonsUnionedScaled = this.getPolygonsUnionedScaled();
     this.polygonsUnioned = this.getPolygonsUnioned();
     this.polygonsSimplified = this.getPolygonsSimplified();
     this.stars = this.getStarPositions();
@@ -42,6 +45,7 @@ export class GeometryViewModel {
 
     const hasSamePath =
       _.isEqual(staleModel.shapeParams, model.shapeParams) && !model.shapeParams.painShapesDragging.some((p) => p);
+    this.polygonsUnionedScaled = hasSamePath ? this.polygonsUnionedScaled : this.getPolygonsUnionedScaled();
     this.polygonsUnioned = hasSamePath ? this.polygonsUnioned : this.getPolygonsUnioned();
     this.polygonsSimplified = hasSamePath ? this.polygonsSimplified : this.getPolygonsSimplified();
     this.stars = hasSamePath ? this.stars : this.getStarPositions();
@@ -57,6 +61,21 @@ export class GeometryViewModel {
     */
     // this.wasUpdated = !(hasSamePath && hasSameDissolve && hasSameGeometry);
     this.wasUpdated = !(hasSamePath && hasSameStarShapeParams && hasSameDissolve);
+  }
+
+  public get hullPolygons(): Array<Array<[number, number]>> {
+    const polygonsSimplified = this.hull.map((p) =>
+      simplify(
+        p.map(([x, y]) => ({ x, y })),
+        1.0
+      )
+    );
+    const polygonsFlat = polygonsSimplified.map((p) => p.map(({ x, y }) => [x, y] as [number, number]));
+    return polygonsFlat;
+  }
+
+  private get starShapedPolygonOffset(): number {
+    return lerp(0, 10, this.model.starShapeParams.outerOffsetRatio);
   }
 
   private getStarPositions(): Position[][] {
@@ -106,36 +125,42 @@ export class GeometryViewModel {
     );
 
     const polygons: Array<Array<[number, number]>> = [];
+    const allOuterPoints: Array<Array<[number, number]>> = [];
     for (const contourSimple of polygonsDeflated) {
       // simplified polygon leads to softer edges because there are fewer point constraints
       const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
       const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourSimple.length * 10, 200));
       const contour = contourSmooth;
 
-      const starShape = polygon2starshape(
+      const { points, outerPoints } = polygon2starshape(
         contour,
-        lerp(0, 10, this.model.starShapeParams.outerOffsetRatio),
+        this.starShapedPolygonOffset,
         this.model.starShapeParams.roundness,
         this.model.starShapeParams.wingLength
       );
+
+      const starShape = points;
       const simplifiedStarShape = simplify(
         starShape.map(([x, y]) => ({ x, y })),
         0.1
       );
-      const scalingFactor = 10e7;
       const starShapeScaled = simplifiedStarShape.map(({ x, y }) => ({
-        x: Math.round(x * scalingFactor),
-        y: Math.round(y * scalingFactor),
+        x: Math.round(x * this.scalingFactor),
+        y: Math.round(y * this.scalingFactor),
       }));
       const starShapesSimplified =
         this.clipper
           ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
-          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number]))
+          .map((polygon) =>
+            polygon.map((p) => [p.x / this.scalingFactor, p.y / this.scalingFactor] as [number, number])
+          )
           .filter((polygon) => polygon.length >= 3) ?? [];
 
       polygons.push(...starShapesSimplified);
+      allOuterPoints.push(outerPoints);
     }
-
+    // This is is used to construct the outer hull inside the shader, which determines the coloring
+    this.hull = allOuterPoints;
     return polygons;
   }
 
@@ -148,6 +173,12 @@ export class GeometryViewModel {
   }
 
   private getPolygonsUnioned(): Array<Array<[number, number]>> {
+    return this.polygonsUnionedScaled.map((path) =>
+      path.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
+    );
+  }
+
+  private getPolygonsUnionedScaled(): clipperLib.Path[] {
     const { paths } = metaballsPaths(this.clipper, this.model.shapeParams.painShapes, { ...this.model.shapeParams });
 
     const polygonsUnionedScaled =
@@ -168,8 +199,6 @@ export class GeometryViewModel {
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? []; // filter out all holes, TODO consider area too
 
-    return polygonsUnionedScaled.map((path) =>
-      path.map(({ x, y }) => [x / this.scalingFactor, y / this.scalingFactor] as [number, number])
-    );
+    return polygonsUnionedScaled;
   }
 }
