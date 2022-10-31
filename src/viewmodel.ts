@@ -10,6 +10,8 @@ import { polygon2starshape, SimplePolygon } from "./polygon/polygons";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import { CurveInterpolator } from "curve-interpolator";
 import { debug, debugPolygon } from "./debug";
+import { Connection } from "./gravitating_shapes";
+import { SkeletonNode } from "./polygon/metaball";
 const lerp = require("interpolation").lerp;
 
 /** performs conditional recalculations of changed data to provide access to polygons and mesh geometry */
@@ -19,6 +21,7 @@ export class GeometryViewModel {
   private model: Model;
   private polygonsUnioned: Array<Array<[number, number]>> = [];
   private polygonsUnionedScaled: clipperLib.Path[] = [];
+  public skeletonGraph: Array<Connection<SkeletonNode>> = [];
   private hull: Array<Array<[number, number]>> = [];
   public stars: Position[][] = [];
   public polygonsSimplified: Array<Array<[number, number]>> = [];
@@ -31,7 +34,7 @@ export class GeometryViewModel {
     this.clipper = clipper;
     this.wasUpdated = true;
 
-    this.polygonsUnionedScaled = this.getPolygonsUnionedScaled();
+    this.setPolygonsUnionedScaled();
     this.polygonsUnioned = this.getPolygonsUnioned();
     this.polygonsSimplified = this.getPolygonsSimplified();
     this.stars = this.getStarPositions();
@@ -45,7 +48,7 @@ export class GeometryViewModel {
 
     const hasSamePath =
       _.isEqual(staleModel.shapeParams, model.shapeParams) && !model.shapeParams.painShapesDragging.some((p) => p);
-    this.polygonsUnionedScaled = hasSamePath ? this.polygonsUnionedScaled : this.getPolygonsUnionedScaled();
+    if (!hasSamePath) this.setPolygonsUnionedScaled();
     this.polygonsUnioned = hasSamePath ? this.polygonsUnioned : this.getPolygonsUnioned();
     this.polygonsSimplified = hasSamePath ? this.polygonsSimplified : this.getPolygonsSimplified();
     this.stars = hasSamePath ? this.stars : this.getStarPositions();
@@ -181,8 +184,10 @@ export class GeometryViewModel {
     );
   }
 
-  private getPolygonsUnionedScaled(): clipperLib.Path[] {
-    const { paths } = metaballsPaths(this.clipper, this.model.shapeParams.painShapes, { ...this.model.shapeParams });
+  private setPolygonsUnionedScaled(): void {
+    const { paths, skeletonGraph } = metaballsPaths(this.clipper, this.model.shapeParams.painShapes, {
+      ...this.model.shapeParams,
+    });
 
     const polygonsUnionedScaled =
       this.clipper
@@ -202,6 +207,7 @@ export class GeometryViewModel {
         })
         ?.filter((p) => this.clipper.orientation(p)) ?? []; // filter out all holes, TODO consider area too
 
-    return polygonsUnionedScaled;
+    this.polygonsUnionedScaled = polygonsUnionedScaled;
+    this.skeletonGraph = skeletonGraph;
   }
 }

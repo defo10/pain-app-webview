@@ -1,4 +1,5 @@
 import * as gl from "gl-matrix";
+import { Point } from "pixi.js";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const lerp = require("interpolation").lerp;
 
@@ -88,4 +89,23 @@ export function clamp(n: number, min: number, max: number): number {
 
 export const insideCircle = ([x1, y1]: readonly [number, number], radius: number, [x2, y2]: gl.vec2): boolean => {
   return Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) <= radius * radius;
+};
+
+export interface MinsDistData {
+  projection: Point;
+  distance: number;
+  line: [number, number, number, number];
+}
+// return point of minimum distance on VW to P
+export const minimumDistancePointOnLine = (v: Point, w: Point, p: Point): MinsDistData => {
+  const l2 = Math.pow(w.x - v.x, 2.0) + Math.pow(w.y - v.y, 2.0); // i.e. |w-v|^2 -  avoid a sqrt
+  const pMinusV = p.subtract(v);
+  const wMinusV = w.subtract(v);
+  const t = clamp(pMinusV.dot(wMinusV) / l2, 0, 1);
+  const projection = v.add(wMinusV.multiplyScalar(t));
+  return {
+    projection,
+    distance: Math.sqrt(Math.pow(p.x - projection.x, 2.0) + Math.pow(p.y - projection.y, 2.0)),
+    line: [v.x, v.y, w.x, w.y],
+  };
 };

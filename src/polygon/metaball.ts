@@ -16,7 +16,7 @@ import { calcMidpoint } from "./polygons";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
-interface SkeletonNode {
+export interface SkeletonNode {
   position: Point;
   radius: number;
 }
@@ -120,6 +120,12 @@ export function metaballsPaths(
                 ratio
               )
             );
+          skeletonGraph.push(
+            new Connection<SkeletonNode>(
+              { position: curr.position, radius: curr.radius },
+              { position: connected.ref.position, radius: connected.ref.radius }
+            )
+          );
         } else if (distanceRatio >= pm.gravitationForceVisibleLowerBound && biggestIsAlreadyFullyConnected) {
           // not connected but pulling each other
           // we save them here, because we dont know all represenatives yet
@@ -148,9 +154,35 @@ export function metaballsPaths(
       inwardShiftRatio
     );
     pathsMap.get(representativeMap.get(gs.from)!)?.push(firstPullPolygon);
+    skeletonGraph.push(
+      new Connection<SkeletonNode>(
+        { position: gs.from.position, radius: gs.from.radius },
+        {
+          position: new Point(...skeletonConnectionOfGravitationPull(gs.from, firstPullPolygon)),
+          radius: gs.from.radius,
+        }
+      )
+    );
   }
 
   return { paths: pathsMap, skeletonGraph };
+}
+
+/** returns something like the center of the pull area, which is used to offset the
+ * gradient spread slightly.
+ */
+function skeletonConnectionOfGravitationPull(circle: PainShape, pull: SimplePolygon): gl.ReadonlyVec2 {
+  // assuming that Polygon shape is [left, front, right]
+  const frontPull = pull[1];
+  const Circle2FrontPullVector = gl.vec2.sub([0, 0], [frontPull.x, frontPull.y], circle.positionAsVec2);
+  const uCircle2FrontPullVector = gl.vec2.normalize([0, 0], Circle2FrontPullVector);
+  const Circle2FrontPullMinusRadiusVector = gl.vec2.sub(
+    [0, 0],
+    Circle2FrontPullVector,
+    gl.vec2.scale([0, 0], uCircle2FrontPullVector, circle.radius)
+  );
+  const point = gl.vec2.add([0, 0], circle.positionAsVec2, Circle2FrontPullMinusRadiusVector);
+  return point;
 }
 
 /** Gives path of connection between two balls, resembling metaballs.

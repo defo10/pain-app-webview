@@ -28,8 +28,9 @@ import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
-import { clamp, dist, lerpPoints } from "./polygon/utils";
+import { clamp, dist, lerpPoints, minimumDistancePointOnLine } from "./polygon/utils";
 import { Position } from "./polygon/space_filling";
+import simplify from "simplify-js";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -230,24 +231,23 @@ const animate = (time: number): void => {
 
     const asString = (arr: [number, number]): string => `${arr[0]},${arr[1]}`;
     const fromString = (str: string): [number, number] => str.split(",").map(parseFloat) as [number, number];
-
-    const centroids = geometryVM.polygonsSimplified
-      .map((polygon) => new EuclidPolygon(...polygon.map((p) => new EuclidPoint(...p))))
-      .filter((polygon) => polygon.area > 40 && polygon.contains(polygon.centroid))
-      .flatMap((polygon) => polygon.centroid)
-      .map((point) => [point.x, point.y] as [number, number]);
-
     const nearestNeighbors = new Map<string, string>();
-    const starsFlat = geometryVM.stars.flat();
-    for (const position of starsFlat) {
-      const allPositions = [
-        ...starsFlat.filter((s) => s !== position && position.radius <= s.radius).map((s) => s.center),
-        ...model.shapeParams.painShapes.map((p) => p.positionAsVec2),
-        ...centroids,
-      ];
-      const nearestNeighbor = _.minBy(allPositions, (p) => dist(position.center, p));
-      if (nearestNeighbor) {
-        nearestNeighbors.set(asString(position.center), asString(nearestNeighbor));
+    const samplePointsComplex = geometryVM.skeletonGraph.flatMap(
+      (conn) => [conn.from.position, conn.to.position] as [Point, Point]
+    );
+    const samplePoints = simplify(samplePointsComplex, 1.0).map((p) => new Point(p.x, p.y));
+    for (const position of geometryVM.stars.flat()) {
+      const shortestDistance = _.minBy(
+        geometryVM.skeletonGraph.map((conn) =>
+          minimumDistancePointOnLine(conn.from.position, conn.to.position, new Point(...position.center))
+        ),
+        (data) => data.distance
+      );
+      if (shortestDistance) {
+        nearestNeighbors.set(
+          asString(position.center),
+          asString([shortestDistance?.projection.x, shortestDistance?.projection.y])
+        );
       }
     }
 
@@ -270,10 +270,9 @@ const animate = (time: number): void => {
       const sprite = new Sprite(renderTexture);
       sprite.anchor.set(0.5);
 
-      const t = model.dissolve; // clamp(model.dissolve * 2, 0.0, 1.0);
+      const t = clamp(model.dissolve * 2, 0.0, 1.0);
       const nearestNeighbor = nearestNeighbors.get(asString(pos.center)) ?? "";
-      const nearestNeighborNeighbor = nearestNeighbors.get(nearestNeighbor) ?? "";
-      const fromPosition = lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
+      const fromPosition = fromString(nearestNeighbor); // lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
       const toPosition: [number, number] = pos.center;
       sprite.position.set(...lerpPoints(fromPosition, toPosition, t));
       sprite.scale.set((pos.radius / 10) * 1);
