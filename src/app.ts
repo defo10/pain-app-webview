@@ -111,7 +111,7 @@ const updatedModel = (oldModel?: Model): Model => {
     },
     animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
-    amplitude: 0,
+    amplitude: 0.7,
     origin: [0, 0],
   };
 };
@@ -252,8 +252,8 @@ const animate = (time: number): void => {
     }
 
     for (const pos of geometryVM.stars.flat()) {
-      const timePerIteration = 1 / model.frequencyHz;
-      const timeSinceStart = time % timePerIteration;
+      const timePerIteration = 1000 / model.frequencyHz;
+      const timeSinceStart = ticker.lastTime % timePerIteration;
       const timeRatio = timeSinceStart / timePerIteration;
       const amplitude = model.amplitude;
 
@@ -275,8 +275,7 @@ const animate = (time: number): void => {
       const fromPosition = fromString(nearestNeighbor); // lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
       const toPosition: [number, number] = pos.center;
       sprite.position.set(...lerpPoints(fromPosition, toPosition, t));
-      sprite.scale.set((pos.radius / 10) * 1);
-      sprite.scale.multiplyScalar(linearMidDrop(timeRatio));
+      sprite.scale.set((pos.radius / 10) * lerp(model.amplitude, 1, linearMidDrop(timeRatio)));
       meshesContainer.addChild(sprite);
     }
   }
