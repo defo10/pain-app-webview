@@ -30,7 +30,7 @@ export class RandomSpaceFilling {
     const positions: Position[] = [];
     const circles: Circle[] = [];
     let attempt = 0;
-    while (positions.length < sampleSize && attempt < 100) {
+    while (positions.length < sampleSize && attempt < 200) {
       const position = this.randomPosition();
       const circleSamples = circlePolygon(new Point(...position.center), position.radius, Math.PI / 4).map(
         ({ x, y }) => new EuclidPoint(x, y)

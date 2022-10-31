@@ -101,7 +101,10 @@ export class GeometryViewModel {
     // dissolve is given as offset in the polygon's units. Completetly dissolving would be mean
     // that it has the biggest distance to the polygon's centerline. This is hard to calculate
     // so we use the polygon's area as a proxy.
-    const maxDissolve = Math.pow(Math.max(...polygonsWithoutSmallParts.map(({ area }) => area)) / 2, 1 / 2);
+    const maxDissolve = Math.max(
+      ...this.model.shapeParams.painShapes.map((ps) => ps.radius),
+      Math.pow(Math.max(...polygonsWithoutSmallParts.map(({ area }) => area)) / Math.PI, 1 / 2)
+    );
 
     const polygonsDeflatedScaled =
       this.clipper

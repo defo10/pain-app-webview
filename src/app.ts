@@ -29,6 +29,7 @@ import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 import { clamp, dist, lerpPoints } from "./polygon/utils";
+import { Position } from "./polygon/space_filling";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -225,8 +226,30 @@ const animate = (time: number): void => {
       .addAttribute("aDistance", [1.0, ...uStar.flat().map((_) => 0)], 1);
     const geometry = uGeom;
     const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-
     const renderTexture = renderer.generateTexture(mesh);
+
+    const asString = (arr: [number, number]): string => `${arr[0]},${arr[1]}`;
+    const fromString = (str: string): [number, number] => str.split(",").map(parseFloat) as [number, number];
+
+    const centroids = geometryVM.polygonsSimplified
+      .map((polygon) => new EuclidPolygon(...polygon.map((p) => new EuclidPoint(...p))))
+      .filter((polygon) => polygon.area > 40 && polygon.contains(polygon.centroid))
+      .flatMap((polygon) => polygon.centroid)
+      .map((point) => [point.x, point.y] as [number, number]);
+
+    const nearestNeighbors = new Map<string, string>();
+    const starsFlat = geometryVM.stars.flat();
+    for (const position of starsFlat) {
+      const allPositions = [
+        ...starsFlat.filter((s) => s !== position && position.radius <= s.radius).map((s) => s.center),
+        ...model.shapeParams.painShapes.map((p) => p.positionAsVec2),
+        ...centroids,
+      ];
+      const nearestNeighbor = _.minBy(allPositions, (p) => dist(position.center, p));
+      if (nearestNeighbor) {
+        nearestNeighbors.set(asString(position.center), asString(nearestNeighbor));
+      }
+    }
 
     for (const pos of geometryVM.stars.flat()) {
       const timePerIteration = 1 / model.frequencyHz;
@@ -247,11 +270,13 @@ const animate = (time: number): void => {
       const sprite = new Sprite(renderTexture);
       sprite.anchor.set(0.5);
 
-      const toPosition: [number, number] = [pos.center[0], pos.center[1]];
-      const fromPosition = _.minBy(model.shapeParams.painShapes, (p) => dist(p.positionAsVec2, toPosition))
-        ?.positionAsVec2 ?? [0, 0];
-      sprite.position.set(...lerpPoints(fromPosition, toPosition, clamp(model.dissolve * 2, 0.0, 1.0)));
-      sprite.scale.set(pos.radius / 10);
+      const t = model.dissolve; // clamp(model.dissolve * 2, 0.0, 1.0);
+      const nearestNeighbor = nearestNeighbors.get(asString(pos.center)) ?? "";
+      const nearestNeighborNeighbor = nearestNeighbors.get(nearestNeighbor) ?? "";
+      const fromPosition = lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
+      const toPosition: [number, number] = pos.center;
+      sprite.position.set(...lerpPoints(fromPosition, toPosition, t));
+      sprite.scale.set((pos.radius / 10) * 1);
       sprite.scale.multiplyScalar(linearMidDrop(timeRatio));
       meshesContainer.addChild(sprite);
     }
