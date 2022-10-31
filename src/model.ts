@@ -31,4 +31,5 @@ export interface Model {
   /** in hz */
   frequencyHz: number;
   amplitude: number;
+  origin: [number, number];
 }

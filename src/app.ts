@@ -28,6 +28,9 @@ import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
+import { clamp, dist, lerpPoints } from "./polygon/utils";
+const lerp = require("interpolation").lerp;
+const smoothstep = require("interpolation").smoothstep;
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -107,6 +110,7 @@ const updatedModel = (oldModel?: Model): Model => {
     animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
     amplitude: 0,
+    origin: [0, 0],
   };
 };
 
@@ -179,7 +183,8 @@ const animate = (time: number): void => {
     shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
   }
 
-  const gradientLength = (_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) * 1;
+  const gradientLength =
+    ((_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) + model.starShapeParams.outerOffsetRatio) * 2;
   if (shader.uniforms.gradientLength !== gradientLength) shader.uniforms.gradientLength = gradientLength;
 
   if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
@@ -224,10 +229,30 @@ const animate = (time: number): void => {
     const renderTexture = renderer.generateTexture(mesh);
 
     for (const pos of geometryVM.stars.flat()) {
+      const timePerIteration = 1 / model.frequencyHz;
+      const timeSinceStart = time % timePerIteration;
+      const timeRatio = timeSinceStart / timePerIteration;
+      const amplitude = model.amplitude;
+
+      const linearMidDrop = (t: number): number => {
+        if (t < 0.5) return lerp(0, 1, t * 2);
+        return lerp(1, 0, (t - 0.5) * 2);
+      };
+
+      const origin = model.origin;
+      const distanceToOrigin = Math.sqrt((pos.center[0] - origin[0]) ** 2 + (pos.center[1] - origin[1]) ** 2);
+      const maxDistanceToOrigin = 300;
+      const scalingFactor = smoothstep(0, 1, distanceToOrigin / maxDistanceToOrigin);
+
       const sprite = new Sprite(renderTexture);
       sprite.anchor.set(0.5);
-      sprite.position.set(...pos.center);
+
+      const toPosition: [number, number] = [pos.center[0], pos.center[1]];
+      const fromPosition = _.minBy(model.shapeParams.painShapes, (p) => dist(p.positionAsVec2, toPosition))
+        ?.positionAsVec2 ?? [0, 0];
+      sprite.position.set(...lerpPoints(fromPosition, toPosition, clamp(model.dissolve * 2, 0.0, 1.0)));
       sprite.scale.set(pos.radius / 10);
+      sprite.scale.multiplyScalar(linearMidDrop(timeRatio));
       meshesContainer.addChild(sprite);
     }
   }
