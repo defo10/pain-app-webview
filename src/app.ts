@@ -31,6 +31,8 @@ import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid
 import { clamp, dist, lerpPoints, minimumDistancePointOnLine } from "./polygon/utils";
 import { Position } from "./polygon/space_filling";
 import simplify from "simplify-js";
+import { isoLines } from "marchingsquares";
+import { debug } from "./debug";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -207,6 +209,28 @@ const animate = (time: number): void => {
   starShader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
   starShader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
   starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+
+  // create 30 x 30 array
+
+  const distanceMatrix = _.range(0, 30).map((i) => _.range(0, 30));
+
+  interface Shape {
+    position: [number, number];
+  }
+  const shapes: Shape[] = [{ position: [10, 10] }, { position: [20, 20] }];
+  for (let row = 0; row < distanceMatrix.length; row++) {
+    for (let col = 0; col < distanceMatrix[row].length; col++) {
+      const distances = shapes.map(({ position }) => dist(position, [row, col]));
+      distanceMatrix[row][col] = distances.reduce((acc, curr) => acc + curr, 0);
+    }
+  }
+  const threshold = 15;
+  const polygons = isoLines(distanceMatrix, threshold);
+  debug(
+    polygons[0].map(([x, y]: [number, number]) => [x * 10, y * 10]),
+    "isoline"
+  );
+  debugger;
 
   // only show underlying star shapes if overlying polygon was shrunk
   // otherwise this leads to random flicker of the underlying star shapes
