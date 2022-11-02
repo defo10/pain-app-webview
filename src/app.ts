@@ -26,13 +26,16 @@ import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } 
 import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
-import { starshape } from "./polygon/polygons";
+import { polygon2starshape, starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 import { clamp, dist, lerpPoints, minimumDistancePointOnLine } from "./polygon/utils";
-import { Position } from "./polygon/space_filling";
+import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import simplify from "simplify-js";
 import { isoLines } from "marchingsquares";
-import { debug } from "./debug";
+import { debug, debugPolygon } from "./debug";
+import { CurveInterpolator } from "curve-interpolator";
+import mcf from "marching-cubes-fast";
+import offsetPolygon from "offset-polygon";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -119,30 +122,26 @@ const updatedModel = (oldModel?: Model): Model => {
 };
 
 let model: Model = updatedModel();
-let geometryVM: undefined | GeometryViewModel;
 const ubo = UniformGroup.uboFrom({
-  paths: Float32Array.from([]),
+  points: Float32Array.from([]),
+  radii: Float32Array.from([]),
 });
 const shader = gradientShaderFrom({
-  gradientLength: 0,
   innerColorStart: 0,
   alphaFallOutEnd: 0,
   outerColorHSL: [0, 0, 0],
   innerColorHSL: [0, 0, 0],
-  paths_ubo: ubo,
-  ranges: new Int16Array([0, 1]),
-  rangesLen: 1,
-});
-
-const starShader = starShaderFrom({
-  innerColorStart: 0,
-  alphaFallOutEnd: 0,
-  outerColorHSL: [0, 0, 0],
-  innerColorHSL: [0, 0, 0],
+  points_ubo: ubo,
+  points_len: 0,
+  threshold: 0.5,
 });
 
 const scene = new Container();
+scene.sortableChildren = true;
 let staleMeshes: Container;
+let outerPolygons: Array<Array<[number, number]>> | undefined;
+let stars: Position[][] | undefined;
+
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 
 const init = async (): Promise<void> => {
@@ -163,75 +162,121 @@ const init = async (): Promise<void> => {
     (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
   );
   backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
+  backgroundImage.interactive = false;
+  backgroundImage.interactiveChildren = false;
   scene.addChild(backgroundImage);
 
   ticker.add(animate);
 };
 
 const animate = (time: number): void => {
+  const oldModel = model;
   model = updatedModel(model);
 
-  if (geometryVM) {
-    geometryVM.updateModel(model);
-  } else {
-    geometryVM = new GeometryViewModel(model, clipper!);
-  }
-
-  if (geometryVM.wasUpdated) {
-    const polygonsOuterHulls = geometryVM.hullPolygons;
-    const ranges = getRanges(polygonsOuterHulls.map((arr) => arr.flat())).flat();
-    ubo.uniforms.paths = Float32Array.from(polygonsOuterHulls.flat(2));
-    ubo.update();
-
-    shader.uniforms.ranges = new Int32Array(ranges);
-    shader.uniforms.rangesLen = Math.floor(ranges.length / 2);
-  }
-
-  const gradientLength =
-    ((_.max(model.shapeParams.painShapes.map((p) => p.radius)) ?? 0) + model.starShapeParams.outerOffsetRatio) * 2;
-  if (shader.uniforms.gradientLength !== gradientLength) shader.uniforms.gradientLength = gradientLength;
-
-  if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
-    shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
-
-  if (shader.uniforms.alphaFallOutEnd !== model.coloringParams.alphaFallOutEnd)
-    shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
-
-  if (!_.isEqual(shader.uniforms.outerColorHSL, model.coloringParams.outerColorHSL))
-    shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
-
-  if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
-    shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
-
   const meshesContainer = new Container();
-  // test star shape
-  starShader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
-  starShader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
-  starShader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
-  starShader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+  meshesContainer.zIndex = 1;
 
-  // create 30 x 30 array
+  const sampleRate = 5;
+  const projectedHeight = Math.round(renderer.height / sampleRate);
+  const projectedWidth = Math.round(renderer.width / sampleRate);
+  const threshold = 1 - model.shapeParams.closeness ?? 0.5;
 
-  const distanceMatrix = _.range(0, 30).map((i) => _.range(0, 30));
+  const distanceMatrix: number[][] = _.range(0, projectedHeight).map((i) => _.range(0, projectedWidth));
+
+  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
+  const falloff = (d: number, radius: number): number => {
+    // TODO if using squared distance, do exponent / 2
+    const R = radius * 2;
+    if (d >= R) return 0;
+    const first = -0.44444 * (d ** 6 / R ** 6);
+    const second = 1.88889 * (d ** 4 / R ** 4);
+    const third = -2.44444 * (d ** 2 / R ** 2);
+    return first + second + third + 1;
+  };
+
+  const calcSDF = (distanceMatrix: number[][], shapes: Shape[]): void => {
+    for (let row = 0; row < distanceMatrix.length; row++) {
+      for (let col = 0; col < distanceMatrix[row].length; col++) {
+        const distances = shapes.map(({ radius, position }) => {
+          const d = dist(position, [col * sampleRate, row * sampleRate]);
+          return falloff(d, radius);
+        });
+        distanceMatrix[row][col] = distances.reduce((acc, curr) => acc + curr, 0);
+      }
+    }
+  };
 
   interface Shape {
+    radius: number;
     position: [number, number];
   }
-  const shapes: Shape[] = [{ position: [10, 10] }, { position: [20, 20] }];
-  for (let row = 0; row < distanceMatrix.length; row++) {
-    for (let col = 0; col < distanceMatrix[row].length; col++) {
-      const distances = shapes.map(({ position }) => dist(position, [row, col]));
-      distanceMatrix[row][col] = distances.reduce((acc, curr) => acc + curr, 0);
-    }
-  }
-  const threshold = 15;
-  const polygons = isoLines(distanceMatrix, threshold);
-  debug(
-    polygons[0].map(([x, y]: [number, number]) => [x * 10, y * 10]),
-    "isoline"
-  );
-  debugger;
+  const shapes: Shape[] = model.shapeParams.painShapes.map((p) => ({
+    radius: p.radius * (1 - model.dissolve),
+    position: [p.position.x, p.position.y],
+  }));
 
+  if (model.dissolve === 0 && outerPolygons) {
+    const starsPerPolygon: Position[][] = [];
+    for (const polygon of outerPolygons) {
+      const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
+      const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
+      const stars = positions.getPositions(0.2);
+      starsPerPolygon.push(stars);
+    }
+
+    stars = starsPerPolygon;
+  } else {
+    const starsShapes =
+      stars?.map((stars) => stars.map(({ center, radius }): Shape => ({ radius, position: center })))?.flat(2) ?? [];
+    shapes.push(...starsShapes);
+  }
+
+  // save the the outer polygon shape to fill it later with stars
+  calcSDF(distanceMatrix, shapes);
+  const polygonsMinified: Array<Array<[number, number]>> = isoLines(distanceMatrix, threshold, { noFrame: true });
+  let polygons = polygonsMinified.map((polygon) =>
+    polygon.map(([x, y]) => [x * sampleRate, y * sampleRate] as [number, number])
+  );
+
+  if (model.dissolve === 0) {
+    outerPolygons = polygons;
+  }
+
+  const starShapedPolygonOffset = (): number => {
+    return lerp(0, 10, model.starShapeParams.outerOffsetRatio);
+  };
+
+  const starShapedPolygons = [];
+  for (const contourComplex of polygons) {
+    const contourSimple = simplify(contourComplex.map(([x, y]) => ({ x, y }))).map(({ x, y }) => [x, y]);
+    // simplified polygon leads to softer edges because there are fewer point constraints
+    const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
+    const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourComplex.length, 200));
+    const contour = contourSmooth;
+
+    const { points } = polygon2starshape(
+      contour,
+      starShapedPolygonOffset(),
+      model.starShapeParams.roundness,
+      model.starShapeParams.wingLength
+    );
+
+    const scalingFactor = 1e8;
+    const starShapeScaled = points.map(([x, y]) => ({
+      x: Math.round(x * scalingFactor),
+      y: Math.round(y * scalingFactor),
+    }));
+    const starShapesSimplified =
+      clipper
+        ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
+        .filter((polygon) => polygon.length >= 3)
+        .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number])) ?? [];
+
+    starShapedPolygons.push(...starShapesSimplified);
+  }
+  polygons = starShapedPolygons;
+
+  /*
   // only show underlying star shapes if overlying polygon was shrunk
   // otherwise this leads to random flicker of the underlying star shapes
   // around the edges
@@ -293,7 +338,7 @@ const animate = (time: number): void => {
 
       const sprite = new Sprite(renderTexture);
       sprite.anchor.set(0.5);
-
+      
       const t = clamp(model.dissolve * 2, 0.0, 1.0);
       const nearestNeighbor = nearestNeighbors.get(asString(pos.center)) ?? "";
       const fromPosition = fromString(nearestNeighbor); // lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
@@ -303,11 +348,43 @@ const animate = (time: number): void => {
       meshesContainer.addChild(sprite);
     }
   }
+  */
 
-  if (geometryVM.polygons.length > 0) {
+  /// ///// UPDATE UNIFORMS
+  const points = shapes.flatMap(({ position }) => position);
+  const radii = shapes.map(({ radius }) => radius + starShapedPolygonOffset());
+  const shapeHasChanged = !(_.isEqual(points, ubo.uniforms.points) && _.isEqual(radii, ubo.uniforms.radii));
+  if (shapeHasChanged) {
+    ubo.uniforms.points = Float32Array.from(points);
+    ubo.uniforms.radii = Float32Array.from(radii);
+    shader.uniforms.points_len = radii.length;
+    ubo.update();
+  }
+
+  if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
+    shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
+
+  if (shader.uniforms.alphaFallOutEnd !== model.coloringParams.alphaFallOutEnd)
+    shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
+
+  if (!_.isEqual(shader.uniforms.outerColorHSL, model.coloringParams.outerColorHSL))
+    shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
+
+  if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
+    shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+
+  shader.uniforms.threshold = threshold;
+
+  /// /// RENDER
+  if (polygons.length > 0) {
     const graphics = new Graphics();
-    graphics.beginFill(0xffffff, 1);
-    geometryVM.polygons.forEach((arr) => graphics.drawPolygon(arr.flat()));
+    graphics.beginFill(0xff0000, 1);
+
+    polygons.forEach((arr) => {
+      const interpolator = new CurveInterpolator(arr, { tension: 0.0 });
+      const contourSmooth: Array<[number, number]> = arr.length < 10 ? interpolator.getPoints(30) : arr;
+      graphics.drawPolygon(contourSmooth.flat());
+    });
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
     graphics.filters = [filter];
@@ -330,6 +407,7 @@ const animate = (time: number): void => {
     for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
       const painShape = model.shapeParams.painShapes[i];
       const circle = new Graphics();
+      circle.zIndex = 9000;
       circle.beginFill(0xffffff, 0.00001);
       circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
       circle.endFill();
@@ -345,9 +423,9 @@ const animate = (time: number): void => {
         }
       });
       circle.on("pointerup", (e) => {
+        model.shapeParams.painShapesDragging[i] = false;
         painShape.position.x = e.data.global.x;
         painShape.position.y = e.data.global.y;
-        model.shapeParams.painShapesDragging[i] = false;
       });
       meshesContainer.addChild(circle);
     }
