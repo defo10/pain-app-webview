@@ -3,7 +3,7 @@
 precision mediump float;
 precision mediump int;
 
-#define POINTS_MAX_LEN 50
+#define POINTS_MAX_LEN 100
 
 out vec4 outputColor;
 
@@ -23,6 +23,7 @@ uniform points_ubo {
 };
 uniform int points_len;
 uniform float threshold;
+uniform float outerOffsetRatio;
 
 // src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
@@ -67,16 +68,25 @@ vec3 rgb2hsl( in vec3 c ){
 }
 
 // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-float falloff( in float d, in float radius ) {
-  // TODO if using squared distance, do exponent / 2
+float falloffOld( in float d, in float radius ) {
   float R = radius * 2.0;
   if (d >= R) {
     return 0.0;
   }
-  float first = -0.44444 * (pow(d, 6.0) / pow(R, 6.0));
-  float second = 1.88889 * (pow(d, 4.0) / pow(R, 4.0));
-  float third = -2.44444 * (pow(d, 2.0) / pow(R, 2.0));
+  float first = -0.44444 * pow(d / R, 6.0);
+  float second = 1.88889 * pow(d / R, 4.0);
+  float third = -2.44444 * pow(d / R, 2.0);
   return first + second + third + 1.0;
+}
+
+float falloff( in float d, in float radius ) {
+  float R = radius * 2.0;
+  if (d >= R) {
+    return 0.0;
+  }
+  float first = 2.0 * pow(d / R, 3.0);
+  float second = -3.0 * pow(d / R, 2.0);
+  return first + second + 1.0;
 }
 
 void main(void) {
@@ -89,20 +99,26 @@ void main(void) {
     float df = 0.0;
     for (int n = 0; n < points_len; n++) {
       float d = distance(screenCoord, points[n]);
+      // float squaredDistance = pow(screenCoord.x - points[n].x, 2.0) + pow(screenCoord.y - points[n], 2.0);
       df += falloff(d, radii[n]);
     }
 
     float pct = smoothstep(threshold, 1.0, df);
 
+
     // pct is 0.0 at edge and 1.0 at center
-    float innerColorPct = smoothstep(0.0, innerColorStart * 2.0, pct);
+    float innerColorPct = smoothstep(max(0., innerColorStart - 0.3), min(1.0, innerColorStart + 0.3), pct);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(outerColor, innerColor, innerColorPct);
     
-	  // 0 means background only, 1 means background not shining thorugh
-    float backgroundPct = smoothstep(0.0, alphaFallOutEnd * 1.5, pct);
 
-    // pre-multiply alpha
-    outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
+    if (outerOffsetRatio > 0.0) {
+      outputColor = colorGradient;
+      return;
+    } else {
+      float backgroundPct = smoothstep(0.0, alphaFallOutEnd * 1.5, pct);
+      // pre-multiply alpha
+      outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
+    }
 }

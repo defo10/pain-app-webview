@@ -8,6 +8,7 @@ import { Circle, intersections, Line, Point as EuclidPoint, Polygon as EuclidPol
 import offsetPolygon from "offset-polygon";
 import { debug, debugPolygon } from "../debug";
 const lerp = require("interpolation").lerp;
+const smoothstep = require("interpolation").smoothstep;
 
 export type SimplePolygon = Point[];
 
@@ -149,7 +150,9 @@ export function polygon2starshape(
   // outerPoints forms the star shape enclosing polygon, which is used for coloring the star shape
   const outerPoints: Array<[number, number]> = [];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
-  const numWings = Math.floor(polygon.circumference / wingLength);
+  const smallness = clamp(smoothstep(0, 200, polygon.circumference), 0, 1);
+  const sizeAwareWingLength = clamp(lerp(wingLength / 5, wingLength, smallness), wingLength / 5, wingLength);
+  const numWings = Math.floor(polygon.circumference / sizeAwareWingLength);
   if (numWings < 3)
     return {
       points: contour,

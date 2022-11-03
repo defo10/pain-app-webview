@@ -30,8 +30,9 @@ export class RandomSpaceFilling {
     const positions: Position[] = [];
     const circles: Circle[] = [];
     let attempt = 0;
-    while (positions.length < sampleSize && attempt < 200) {
+    while (positions.length < sampleSize && attempt < 300) {
       const position = this.randomPosition();
+      const padding = 1;
       const circleSamples = circlePolygon(new Point(...position.center), position.radius, Math.PI / 4).map(
         ({ x, y }) => new EuclidPoint(x, y)
       );
@@ -43,7 +44,7 @@ export class RandomSpaceFilling {
         !circleSamples.some((point) => circles.some((circle) => circle.contains(point)))
       ) {
         positions.push(position);
-        circles.push(new Circle(center, position.radius));
+        circles.push(new Circle(center, position.radius + 1.5));
       }
 
       attempt += 1;

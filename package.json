@@ -43,6 +43,7 @@
     "@pixi/math-extras": "^6.5.5",
     "@pixi/picture": "^3.0.6",
     "curve-interpolator": "^2.0.8",
+    "d3-contour": "^4.0.0",
     "denque": "^2.1.0",
     "gl-matrix": "^3.4.3",
     "hull.js": "^1.0.2",

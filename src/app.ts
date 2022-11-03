@@ -176,7 +176,7 @@ const animate = (time: number): void => {
   const meshesContainer = new Container();
   meshesContainer.zIndex = 1;
 
-  const sampleRate = 5;
+  const sampleRate = 12;
   const projectedHeight = Math.round(renderer.height / sampleRate);
   const projectedWidth = Math.round(renderer.width / sampleRate);
   const threshold = 1 - model.shapeParams.closeness ?? 0.5;
@@ -219,7 +219,7 @@ const animate = (time: number): void => {
     const starsPerPolygon: Position[][] = [];
     for (const polygon of outerPolygons) {
       const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
-      const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
+      const positions = new RandomSpaceFilling(euclidPolygon, [3, 5]);
       const stars = positions.getPositions(0.2);
       starsPerPolygon.push(stars);
     }
@@ -243,38 +243,40 @@ const animate = (time: number): void => {
   }
 
   const starShapedPolygonOffset = (): number => {
-    return lerp(0, 10, model.starShapeParams.outerOffsetRatio);
+    return lerp(0, 20, model.starShapeParams.outerOffsetRatio);
   };
 
-  const starShapedPolygons = [];
-  for (const contourComplex of polygons) {
-    const contourSimple = simplify(contourComplex.map(([x, y]) => ({ x, y }))).map(({ x, y }) => [x, y]);
-    // simplified polygon leads to softer edges because there are fewer point constraints
-    const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
-    const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourComplex.length, 200));
-    const contour = contourSmooth;
+  if (model.starShapeParams.outerOffsetRatio !== 0) {
+    const starShapedPolygons = [];
+    for (const contourComplex of polygons) {
+      const contourSimple = contourComplex; // simplify(contourComplex.map(([x, y]) => ({ x, y }))).map(({ x, y }) => [x, y]);
+      // simplified polygon leads to softer edges because there are fewer point constraints
+      const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
+      const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourComplex.length, 200));
+      const contour = contourSmooth;
 
-    const { points } = polygon2starshape(
-      contour,
-      starShapedPolygonOffset(),
-      model.starShapeParams.roundness,
-      model.starShapeParams.wingLength
-    );
+      const { points } = polygon2starshape(
+        contour,
+        starShapedPolygonOffset(),
+        model.starShapeParams.roundness,
+        model.starShapeParams.wingLength
+      );
 
-    const scalingFactor = 1e8;
-    const starShapeScaled = points.map(([x, y]) => ({
-      x: Math.round(x * scalingFactor),
-      y: Math.round(y * scalingFactor),
-    }));
-    const starShapesSimplified =
-      clipper
-        ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
-        .filter((polygon) => polygon.length >= 3)
-        .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number])) ?? [];
+      const scalingFactor = 1e8;
+      const starShapeScaled = points.map(([x, y]) => ({
+        x: Math.round(x * scalingFactor),
+        y: Math.round(y * scalingFactor),
+      }));
+      const starShapesSimplified =
+        clipper
+          ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
+          .filter((polygon) => polygon.length >= 3)
+          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number])) ?? [];
 
-    starShapedPolygons.push(...starShapesSimplified);
+      starShapedPolygons.push(...starShapesSimplified);
+    }
+    polygons = starShapedPolygons;
   }
-  polygons = starShapedPolygons;
 
   /*
   // only show underlying star shapes if overlying polygon was shrunk
@@ -352,7 +354,7 @@ const animate = (time: number): void => {
 
   /// ///// UPDATE UNIFORMS
   const points = shapes.flatMap(({ position }) => position);
-  const radii = shapes.map(({ radius }) => radius + starShapedPolygonOffset());
+  const radii = shapes.map(({ radius }) => radius);
   const shapeHasChanged = !(_.isEqual(points, ubo.uniforms.points) && _.isEqual(radii, ubo.uniforms.radii));
   if (shapeHasChanged) {
     ubo.uniforms.points = Float32Array.from(points);
@@ -374,6 +376,7 @@ const animate = (time: number): void => {
     shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
 
   shader.uniforms.threshold = threshold;
+  shader.uniforms.outerOffsetRatio = model.starShapeParams.outerOffsetRatio;
 
   /// /// RENDER
   if (polygons.length > 0) {
@@ -382,9 +385,14 @@ const animate = (time: number): void => {
 
     polygons.forEach((arr) => {
       const interpolator = new CurveInterpolator(arr, { tension: 0.0 });
-      const contourSmooth: Array<[number, number]> = arr.length < 10 ? interpolator.getPoints(30) : arr;
+      const contourSmooth: Array<[number, number]> = arr.length < 10 ? interpolator.getPoints(20) : arr;
       graphics.drawPolygon(contourSmooth.flat());
     });
+
+    stars?.flat().forEach((star) => {
+      graphics.drawCircle(...star.center, star.radius);
+    });
+
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
     graphics.filters = [filter];
