@@ -411,7 +411,7 @@ const animate = (time: number): void => {
 
   const generateContour = contours()
     .size([logicalWidth, logicalHeight])
-    .thresholds([threshold * 100]);
+    .thresholds([threshold * 100]); // threshold is scaled because we use 0-100 in the shader
   const [sharpPolygons] = generateContour(buffer.data);
   const polygonsSharp = sharpPolygons.coordinates.map(([coords]) => coords.map(([x, y]) => [x, y] as [number, number]));
 
@@ -420,7 +420,7 @@ const animate = (time: number): void => {
     const graphics = new Graphics();
     graphics.beginFill(0xff0000, 1);
 
-    polygonsSharp.forEach((arr) => {
+    polygons.forEach((arr) => {
       graphics.drawPolygon(arr.flat());
     });
 
