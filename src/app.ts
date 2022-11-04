@@ -19,23 +19,25 @@ import {
   Geometry,
   DRAW_MODES,
   Ticker,
+  RenderTexture,
+  Framebuffer,
+  Rectangle,
 } from "pixi.js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
-import { GeometryViewModel } from "./viewmodel";
 import { Model } from "./model";
 import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
 import { polygon2starshape, starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 import { clamp, dist, lerpPoints, minimumDistancePointOnLine } from "./polygon/utils";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
-import simplify from "simplify-js";
 import { isoLines } from "marchingsquares";
-import { debug, debugPolygon } from "./debug";
 import { CurveInterpolator } from "curve-interpolator";
-import mcf from "marching-cubes-fast";
-import offsetPolygon from "offset-polygon";
+import { contours } from "d3-contour";
+import { debug } from "./debug";
+import { Buffer, Kernel, UINT8 } from "./blink";
+import KernelSource from "./filters/kernelsource.frag";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -175,37 +177,6 @@ const animate = (time: number): void => {
 
   const meshesContainer = new Container();
   meshesContainer.zIndex = 1;
-
-  const sampleRate = 12;
-  const projectedHeight = Math.round(renderer.height / sampleRate);
-  const projectedWidth = Math.round(renderer.width / sampleRate);
-  const threshold = 1 - model.shapeParams.closeness ?? 0.5;
-
-  const distanceMatrix: number[][] = _.range(0, projectedHeight).map((i) => _.range(0, projectedWidth));
-
-  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-  const falloff = (d: number, radius: number): number => {
-    // TODO if using squared distance, do exponent / 2
-    const R = radius * 2;
-    if (d >= R) return 0;
-    const first = -0.44444 * (d ** 6 / R ** 6);
-    const second = 1.88889 * (d ** 4 / R ** 4);
-    const third = -2.44444 * (d ** 2 / R ** 2);
-    return first + second + third + 1;
-  };
-
-  const calcSDF = (distanceMatrix: number[][], shapes: Shape[]): void => {
-    for (let row = 0; row < distanceMatrix.length; row++) {
-      for (let col = 0; col < distanceMatrix[row].length; col++) {
-        const distances = shapes.map(({ radius, position }) => {
-          const d = dist(position, [col * sampleRate, row * sampleRate]);
-          return falloff(d, radius);
-        });
-        distanceMatrix[row][col] = distances.reduce((acc, curr) => acc + curr, 0);
-      }
-    }
-  };
-
   interface Shape {
     radius: number;
     position: [number, number];
@@ -231,12 +202,46 @@ const animate = (time: number): void => {
     shapes.push(...starsShapes);
   }
 
+  const sampleRate = 20;
+  const projectedHeight = Math.round(renderer.height / sampleRate);
+  const projectedWidth = Math.round(renderer.width / sampleRate);
+  const threshold = 1 - model.shapeParams.closeness ?? 0.5;
+
+  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
+  const falloff = (d: number, radius: number): number => {
+    const R = radius * 2.0;
+    if (d >= R) {
+      return 0.0;
+    }
+    const first = 2.0 * Math.pow(d / R, 3.0);
+    const second = -3.0 * Math.pow(d / R, 2.0);
+    return first + second + 1.0;
+  };
+
+  const distMatrix: number[] = new Array(projectedHeight * projectedWidth);
+  for (let m = 0, k = 0; m < projectedHeight; m++) {
+    for (let n = 0; n < projectedWidth; n++, k++) {
+      const distances = shapes.map(({ radius, position }) => {
+        const d = dist(position, [n * sampleRate + sampleRate * 0.5, m * sampleRate + sampleRate * 0.5]);
+        return falloff(d, radius);
+      });
+      distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
+    }
+  }
+
+  const calcContour = contours().size([projectedWidth, projectedHeight]).thresholds([threshold]);
+  const [polygonsNew] = calcContour(distMatrix);
+  const polygons = polygonsNew.coordinates.map(([coords]) =>
+    coords.map(([x, y]) => [x * sampleRate, y * sampleRate] as [number, number])
+  );
   // save the the outer polygon shape to fill it later with stars
+  /*
   calcSDF(distanceMatrix, shapes);
   const polygonsMinified: Array<Array<[number, number]>> = isoLines(distanceMatrix, threshold, { noFrame: true });
   let polygons = polygonsMinified.map((polygon) =>
     polygon.map(([x, y]) => [x * sampleRate, y * sampleRate] as [number, number])
   );
+  */
 
   if (model.dissolve === 0) {
     outerPolygons = polygons;
@@ -275,7 +280,7 @@ const animate = (time: number): void => {
 
       starShapedPolygons.push(...starShapesSimplified);
     }
-    polygons = starShapedPolygons;
+    polygons.push(...starShapedPolygons);
   }
 
   /*
@@ -353,8 +358,8 @@ const animate = (time: number): void => {
   */
 
   /// ///// UPDATE UNIFORMS
-  const points = shapes.flatMap(({ position }) => position);
-  const radii = shapes.map(({ radius }) => radius);
+  const points = shapes.flatMap(({ position }) => [...position, 0, 0]);
+  const radii = shapes.flatMap(({ radius }) => [radius, 0, 0, 0]);
   const shapeHasChanged = !(_.isEqual(points, ubo.uniforms.points) && _.isEqual(radii, ubo.uniforms.radii));
   if (shapeHasChanged) {
     ubo.uniforms.points = Float32Array.from(points);
@@ -378,20 +383,52 @@ const animate = (time: number): void => {
   shader.uniforms.threshold = threshold;
   shader.uniforms.outerOffsetRatio = model.starShapeParams.outerOffsetRatio;
 
+  /// gpgpu
+  const dfUniforms = {
+    points_len: shapes.length,
+  };
+
+  // TODO only calc bounding box par which is visible
+  const logicalWidth = renderer.width / RESOLUTION;
+  const logicalHeight = renderer.height / RESOLUTION;
+  /* @ts-expect-error */
+  const buffer = new Buffer({
+    alloc: logicalHeight * logicalWidth,
+    type: UINT8,
+    width: logicalWidth,
+    height: logicalHeight,
+  });
+
+  const kernel = new Kernel(
+    {
+      output: { outputDistance: buffer },
+    },
+    KernelSource
+  );
+
+  kernel.exec(dfUniforms, new Float32Array(points), new Float32Array(radii));
+  kernel.delete();
+
+  const generateContour = contours()
+    .size([logicalWidth, logicalHeight])
+    .thresholds([threshold * 100]);
+  const [sharpPolygons] = generateContour(buffer.data);
+  const polygonsSharp = sharpPolygons.coordinates.map(([coords]) => coords.map(([x, y]) => [x, y] as [number, number]));
+
   /// /// RENDER
-  if (polygons.length > 0) {
+  if (polygonsSharp.length > 0) {
     const graphics = new Graphics();
     graphics.beginFill(0xff0000, 1);
 
-    polygons.forEach((arr) => {
-      const interpolator = new CurveInterpolator(arr, { tension: 0.0 });
-      const contourSmooth: Array<[number, number]> = arr.length < 10 ? interpolator.getPoints(20) : arr;
-      graphics.drawPolygon(contourSmooth.flat());
+    polygonsSharp.forEach((arr) => {
+      graphics.drawPolygon(arr.flat());
     });
 
+    /*
     stars?.flat().forEach((star) => {
       graphics.drawCircle(...star.center, star.radius);
     });
+    */
 
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;

@@ -104,6 +104,8 @@ void main(void) {
     }
 
     float pct = smoothstep(threshold, 1.0, df);
+    outputColor = vec4(0., 1.0, 0., pct);
+    return;
 
 
     // pct is 0.0 at edge and 1.0 at center

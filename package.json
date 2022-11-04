@@ -15,6 +15,7 @@
   "author": "Daniel Stachnik",
   "license": "ISC",
   "devDependencies": {
+    "@types/d3-contour": "^3.0.1",
     "@types/hull.js": "^1.0.2",
     "@types/lodash": "^4.14.186",
     "@typescript-eslint/eslint-plugin": "^5.38.1",
