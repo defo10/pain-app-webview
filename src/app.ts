@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import _ from "lodash";
+import _, { mixin } from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
@@ -190,7 +190,7 @@ const animate = (time: number): void => {
     const starsPerPolygon: Position[][] = [];
     for (const polygon of outerPolygons) {
       const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
-      const positions = new RandomSpaceFilling(euclidPolygon, [3, 5]);
+      const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
       const stars = positions.getPositions(0.2);
       starsPerPolygon.push(stars);
     }
@@ -358,8 +358,8 @@ const animate = (time: number): void => {
   */
 
   /// ///// UPDATE UNIFORMS
-  const points = shapes.flatMap(({ position }) => [...position, 0, 0]);
-  const radii = shapes.flatMap(({ radius }) => [radius, 0, 0, 0]);
+  const points = shapes.flatMap(({ position }) => position);
+  const radii = shapes.map(({ radius }) => radius);
   const shapeHasChanged = !(_.isEqual(points, ubo.uniforms.points) && _.isEqual(radii, ubo.uniforms.radii));
   if (shapeHasChanged) {
     ubo.uniforms.points = Float32Array.from(points);
@@ -384,13 +384,23 @@ const animate = (time: number): void => {
   shader.uniforms.outerOffsetRatio = model.starShapeParams.outerOffsetRatio;
 
   /// gpgpu
+  // bounding box is expanded a bit to give room for inaccuracy at the edges
+  const bb = {
+    minX: Math.min(0, (_.minBy(polygons.flat(), ([x, _]) => x)?.[0] ?? 0) * 0.9),
+    minY: Math.min(0, (_.minBy(polygons.flat(), ([_, y]) => y)?.[1] ?? 0) * 0.9),
+    maxX: Math.min(renderer.width, (_.maxBy(polygons.flat(), ([x, _]) => x)?.[0] ?? 0) * 1.2),
+    maxY: Math.min(renderer.height, (_.maxBy(polygons.flat(), ([_, y]) => y)?.[1] ?? 0) * 1.2),
+  };
+
   const dfUniforms = {
     points_len: shapes.length,
+    offsetX: bb.minX,
+    offsetY: bb.minY,
   };
 
   // TODO only calc bounding box par which is visible
-  const logicalWidth = renderer.width / RESOLUTION;
-  const logicalHeight = renderer.height / RESOLUTION;
+  const logicalWidth = bb.maxX - bb.minX; // renderer.width / RESOLUTION;
+  const logicalHeight = bb.maxY - bb.minY; // renderer.height / RESOLUTION;
   /* @ts-expect-error */
   const buffer = new Buffer({
     alloc: logicalHeight * logicalWidth,
@@ -406,21 +416,25 @@ const animate = (time: number): void => {
     KernelSource
   );
 
-  kernel.exec(dfUniforms, new Float32Array(points), new Float32Array(radii));
+  const pointsPadded = shapes.flatMap(({ position }) => [...position, 0, 0]);
+  const radiiPadded = shapes.flatMap(({ radius }) => [radius, 0, 0, 0]);
+  kernel.exec(dfUniforms, new Float32Array(pointsPadded), new Float32Array(radiiPadded));
   kernel.delete();
 
   const generateContour = contours()
     .size([logicalWidth, logicalHeight])
     .thresholds([threshold * 100]); // threshold is scaled because we use 0-100 in the shader
   const [sharpPolygons] = generateContour(buffer.data);
-  const polygonsSharp = sharpPolygons.coordinates.map(([coords]) => coords.map(([x, y]) => [x, y] as [number, number]));
+  const polygonsSharp = sharpPolygons.coordinates.map(([coords]) =>
+    coords.map(([x, y]) => [x + dfUniforms.offsetX, y + dfUniforms.offsetY] as [number, number])
+  );
 
   /// /// RENDER
   if (polygonsSharp.length > 0) {
     const graphics = new Graphics();
     graphics.beginFill(0xff0000, 1);
 
-    polygons.forEach((arr) => {
+    polygonsSharp.forEach((arr) => {
       graphics.drawPolygon(arr.flat());
     });
 

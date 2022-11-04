@@ -6,6 +6,8 @@ layout(std140) uniform data_ubo {
   vec2 radii[POINTS_MAX_LEN]; // use as vector 2 because otherwise the index accessing wouldn't fit int the 16 byte alignment
 };
 uniform mediump int points_len;
+uniform mediump float offsetX;
+uniform mediump float offsetY;
 
 // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
 float falloff( in float d, in float radius ) {
@@ -19,7 +21,8 @@ float falloff( in float d, in float radius ) {
 }
 
 void main(void) {
-    vec2 screenCoord = bl_UV * vec2(bl_Size);
+    vec2 uvCoord = bl_UV * vec2(bl_Size);
+    vec2 screenCoord = vec2(uvCoord.x + offsetX, uvCoord.y + offsetY);
 
     // dist \in [0..1], 0 being farthest away
     float df = 0.0;
