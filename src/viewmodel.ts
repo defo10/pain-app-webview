@@ -142,7 +142,7 @@ export class GeometryViewModel {
         contour,
         this.starShapedPolygonOffset,
         this.model.starShapeParams.roundness,
-        this.model.starShapeParams.wingLength
+        this.model.starShapeParams.wingWidth
       );
 
       const starShape = points;

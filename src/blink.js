@@ -607,7 +607,7 @@ void main() {
             gl.bindBufferBase(gl.UNIFORM_BUFFER, 1, this.uboBuffer);
 
             // Name of the member variables inside of our Uniform Block
-            const uboVariableNames = ["points", "radii"];
+            const uboVariableNames = ["points"];
 
             // Get the respective index of the member variables inside our Uniform Block
             const uboVariableIndices = gl.getUniformIndices(
@@ -686,7 +686,7 @@ void main() {
             }
         }
 
-        setUBO(points, radii) {
+        setUBO(points) {
             // ==== START OF PART C ====
             gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboBuffer);
 
@@ -696,12 +696,6 @@ void main() {
                 this.uboVariableInfo.points.offset,
                 points,
                 0
-            );
-            gl.bufferSubData(
-                gl.UNIFORM_BUFFER,
-                this.uboVariableInfo.radii.offset,
-                radii,
-                0,
             );
 
             gl.bindBuffer(gl.UNIFORM_BUFFER, null);
@@ -860,7 +854,7 @@ highp uint bl_Id() {
             delete this.steps;
         }
 
-        exec(uniforms = {}, points = new Float32Array([]), radii = new Float32Array([])) {
+        exec(uniforms = {}, points = new Float32Array([])) {
             // Check dimensions.
             let size = [];
             for (const output of Object.values(this.outputs)) {
@@ -900,7 +894,7 @@ highp uint bl_Id() {
                     program.setUniform(uniform, value);
                 }
 
-                program.setUBO(points, radii)
+                program.setUBO(points)
 
                 // Input textures.
                 for (const [index, name] of Object.keys(this.inputs).entries()) {

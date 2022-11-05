@@ -2,8 +2,7 @@
 #define POINTS_MAX_LEN 100
 
 layout(std140) uniform data_ubo {
-  vec2 points[POINTS_MAX_LEN];
-  vec2 radii[POINTS_MAX_LEN]; // use as vector 2 because otherwise the index accessing wouldn't fit int the 16 byte alignment
+  vec4 points[POINTS_MAX_LEN];
 };
 uniform mediump int points_len;
 uniform mediump float offsetX;
@@ -27,8 +26,8 @@ void main(void) {
     // dist \in [0..1], 0 being farthest away
     float df = 0.0;
     for (int n = 0; n < POINTS_MAX_LEN; n++) {
-      float d = distance(screenCoord, points[n]);
-      df += falloff(d, radii[n].x);
+      float d = distance(screenCoord, points[n].xy);
+      df += falloff(d, points[n].z);
     }
 
     outputDistance = uint(df * 100.0);

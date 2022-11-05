@@ -18,8 +18,7 @@ uniform vec3 outerColorHSL;
 uniform vec3 innerColorHSL; // HSL color spectrum
 
 uniform points_ubo {
-  vec2 points[POINTS_MAX_LEN];
-  float radii[POINTS_MAX_LEN];
+  vec4 points[POINTS_MAX_LEN];
 };
 uniform int points_len;
 uniform float threshold;
@@ -98,15 +97,15 @@ void main(void) {
     // dist \in [0..1], 0 being farthest away
     float df = 0.0;
     for (int n = 0; n < points_len; n++) {
-      float d = distance(screenCoord, points[n]);
+      float d = distance(screenCoord, points[n].xy);
       // float squaredDistance = pow(screenCoord.x - points[n].x, 2.0) + pow(screenCoord.y - points[n], 2.0);
-      df += falloff(d, radii[n]);
+      df += falloff(d, points[n].z);
     }
 
     float pct = smoothstep(threshold, 1.0, df);
 
     // pct is 0.0 at edge and 1.0 at center
-    float innerColorPct = smoothstep(max(0., innerColorStart - 0.3), min(1.0, innerColorStart + 0.3), pct);
+    float innerColorPct = smoothstep(0., innerColorStart * 2.0, pct);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(outerColor, innerColor, innerColorPct);

@@ -71,20 +71,6 @@ const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
 Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
 const assetsPromise = Assets.loadBundle("body");
 
-const getRanges = (arr: number[][]): number[] => {
-  const ranges: number[] = [];
-  for (const sub of arr) {
-    if (ranges.length === 0) {
-      ranges.push(0, Math.floor(sub.length / 2));
-      continue;
-    }
-    const last = ranges[ranges.length - 1];
-    // order of execution in math formula matters because last was already divided by!
-    ranges.push(last, Math.floor(last + sub.length / 2));
-  }
-  return ranges;
-};
-
 const updatedModel = (oldModel?: Model): Model => {
   const painShapes = oldModel?.shapeParams.painShapes.map((p, i) => {
     const painShape = new PainShape(p.position, valueFromSlider(`radius${i + 1}`));
@@ -114,7 +100,7 @@ const updatedModel = (oldModel?: Model): Model => {
     starShapeParams: {
       outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
       roundness: valueFromSlider("roundness"),
-      wingLength: valueFromSlider("wingLength"),
+      wingWidth: valueFromSlider("wingLength"),
     },
     animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
@@ -141,8 +127,7 @@ const shader = gradientShaderFrom({
 const scene = new Container();
 scene.sortableChildren = true;
 let staleMeshes: Container;
-let outerPolygons: Array<Array<[number, number]>> | undefined;
-let stars: Position[][] | undefined;
+let stars: Position[][] = [];
 
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 
@@ -172,40 +157,41 @@ const init = async (): Promise<void> => {
 };
 
 const animate = (time: number): void => {
-  const oldModel = model;
   model = updatedModel(model);
 
-  const meshesContainer = new Container();
-  meshesContainer.zIndex = 1;
+  const padding = 30;
+  const bb = {
+    minX: Math.max(
+      0,
+      (_.minBy(model.shapeParams.painShapes, (ps) => ps.position.x - ps.radius)?.position.x ?? 0) - padding
+    ),
+    minY: Math.max(
+      0,
+      (_.minBy(model.shapeParams.painShapes, (ps) => ps.position.y - ps.radius)?.position.y ?? 0) - padding
+    ),
+    maxX: (_.maxBy(model.shapeParams.painShapes, (ps) => ps.position.x + ps.radius)?.position.x ?? 0) + padding,
+    maxY: (_.maxBy(model.shapeParams.painShapes, (ps) => ps.position.y + ps.radius)?.position.y ?? 0) + padding,
+  };
+
+  const offsetX = bb.minX;
+  const offsetY = bb.minY;
+  const bbWidth = bb.maxX - bb.minX;
+  const bbHeight = bb.maxY - bb.minY;
+
+  /// 1. create low res polygon of outer shape
   interface Shape {
     radius: number;
-    position: [number, number];
+    center: [number, number];
   }
-  const shapes: Shape[] = model.shapeParams.painShapes.map((p) => ({
-    radius: p.radius * (1 - model.dissolve),
-    position: [p.position.x, p.position.y],
+  const outerShapes: Shape[] = model.shapeParams.painShapes.map((p) => ({
+    radius: p.radius,
+    center: [p.position.x, p.position.y],
   }));
 
-  if (model.dissolve === 0 && outerPolygons) {
-    const starsPerPolygon: Position[][] = [];
-    for (const polygon of outerPolygons) {
-      const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
-      const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
-      const stars = positions.getPositions(0.2);
-      starsPerPolygon.push(stars);
-    }
-
-    stars = starsPerPolygon;
-  } else {
-    const starsShapes =
-      stars?.map((stars) => stars.map(({ center, radius }): Shape => ({ radius, position: center })))?.flat(2) ?? [];
-    shapes.push(...starsShapes);
-  }
-
-  const sampleRate = 20;
-  const projectedHeight = Math.round(renderer.height / sampleRate);
-  const projectedWidth = Math.round(renderer.width / sampleRate);
+  const sampleRate = 10;
   const threshold = 1 - model.shapeParams.closeness ?? 0.5;
+  const projectedWidth = Math.round(bbWidth / sampleRate);
+  const projectedHeight = Math.round(bbHeight / sampleRate);
 
   // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
   const falloff = (d: number, radius: number): number => {
@@ -218,11 +204,11 @@ const animate = (time: number): void => {
     return first + second + 1.0;
   };
 
-  const distMatrix: number[] = new Array(projectedHeight * projectedWidth);
-  for (let m = 0, k = 0; m < projectedHeight; m++) {
-    for (let n = 0; n < projectedWidth; n++, k++) {
-      const distances = shapes.map(({ radius, position }) => {
-        const d = dist(position, [n * sampleRate + sampleRate * 0.5, m * sampleRate + sampleRate * 0.5]);
+  const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
+  for (let m = bb.minY, k = 0; m < bb.maxY; m = m + sampleRate) {
+    for (let n = bb.minX; n < bb.maxX; n = n + sampleRate, k++) {
+      const distances = outerShapes.map(({ radius, center }) => {
+        const d = dist(center, [n + sampleRate * 0.5, m + sampleRate * 0.5]);
         return falloff(d, radius);
       });
       distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
@@ -231,40 +217,88 @@ const animate = (time: number): void => {
 
   const calcContour = contours().size([projectedWidth, projectedHeight]).thresholds([threshold]);
   const [polygonsNew] = calcContour(distMatrix);
-  const polygons = polygonsNew.coordinates.map(([coords]) =>
-    coords.map(([x, y]) => [x * sampleRate, y * sampleRate] as [number, number])
+  const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
+    coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
   );
-  // save the the outer polygon shape to fill it later with stars
-  /*
-  calcSDF(distanceMatrix, shapes);
-  const polygonsMinified: Array<Array<[number, number]>> = isoLines(distanceMatrix, threshold, { noFrame: true });
-  let polygons = polygonsMinified.map((polygon) =>
-    polygon.map(([x, y]) => [x * sampleRate, y * sampleRate] as [number, number])
-  );
-  */
 
-  if (model.dissolve === 0) {
-    outerPolygons = polygons;
+  // 2. fill out with stars if needed
+  if (model.dissolve > 0) {
+    if (stars.length === 0) {
+      const starsPerPolygon: Position[][] = [];
+      for (const polygon of polygonLowRes) {
+        const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
+        const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
+        const stars = positions.getPositions(0.2);
+        starsPerPolygon.push(stars);
+      }
+
+      // save star as global such that is doesnt change during the dissolve
+      stars = starsPerPolygon;
+    }
   }
+  if (model.dissolve === 0) stars = [];
 
-  const starShapedPolygonOffset = (): number => {
+  // 3. create high res polygon using GPGPU
+  /* @ts-expect-error */
+  const buffer = new Buffer({
+    alloc: bbHeight * bbWidth,
+    type: UINT8,
+    width: bbWidth,
+    height: bbHeight,
+  });
+
+  const kernel = new Kernel(
+    {
+      output: { outputDistance: buffer },
+    },
+    KernelSource
+  );
+
+  // TODO RATHER USE FOUR VECTOR WITH ONE PADDED
+  // Layout std140 aligns all values on the gpu to 16 bytes, so we need to pad the array to 16 bytes length
+  const asPaddedVec4 = ({ center, radius }: Shape): number[] => [...center, radius, 0];
+  const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
+    center,
+    radius: radius * (1 - model.dissolve),
+  }));
+  const paddedShapes = [...outerShapesDissolved.map(asPaddedVec4), ...stars.flat(1).map(asPaddedVec4)];
+  kernel.exec(
+    {
+      points_len: paddedShapes.length,
+      offsetX,
+      offsetY,
+    },
+    new Float32Array(paddedShapes.flat())
+  );
+  kernel.delete();
+
+  const generateContour = contours()
+    .size([bbWidth, bbHeight])
+    .thresholds([threshold * 100]); // threshold is scaled because we use 0-100 values in the shader
+  const [sharpPolygons] = generateContour(buffer.data);
+  const polygonsHighRes = sharpPolygons.coordinates.map(([coords]) =>
+    coords.map(([x, y]) => [x + offsetX, y + offsetY] as [number, number])
+  );
+
+  // 4. add spikes to polygons
+  const wingLength = (): number => {
     return lerp(0, 20, model.starShapeParams.outerOffsetRatio);
   };
 
-  if (model.starShapeParams.outerOffsetRatio !== 0) {
-    const starShapedPolygons = [];
-    for (const contourComplex of polygons) {
-      const contourSimple = contourComplex; // simplify(contourComplex.map(([x, y]) => ({ x, y }))).map(({ x, y }) => [x, y]);
-      // simplified polygon leads to softer edges because there are fewer point constraints
-      const interpolator = new CurveInterpolator(contourSimple, { tension: 0.0 });
+  let starShapedPolygons: Array<Array<[number, number]>> | undefined;
+  if (model.starShapeParams.outerOffsetRatio > 0) {
+    starShapedPolygons = [];
+    for (const contourComplex of polygonsHighRes) {
+      // simplified polygon leads to softer edges because the angles are lower
+      const interpolator = new CurveInterpolator(contourComplex, { tension: 0.0 });
       const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourComplex.length, 200));
       const contour = contourSmooth;
 
       const { points } = polygon2starshape(
         contour,
-        starShapedPolygonOffset(),
+        wingLength(),
         model.starShapeParams.roundness,
-        model.starShapeParams.wingLength
+        model.starShapeParams.wingWidth
       );
 
       const scalingFactor = 1e8;
@@ -280,7 +314,6 @@ const animate = (time: number): void => {
 
       starShapedPolygons.push(...starShapesSimplified);
     }
-    polygons.push(...starShapedPolygons);
   }
 
   /*
@@ -357,92 +390,29 @@ const animate = (time: number): void => {
   }
   */
 
-  /// ///// UPDATE UNIFORMS
-  const points = shapes.flatMap(({ position }) => position);
-  const radii = shapes.map(({ radius }) => radius);
-  const shapeHasChanged = !(_.isEqual(points, ubo.uniforms.points) && _.isEqual(radii, ubo.uniforms.radii));
-  if (shapeHasChanged) {
-    ubo.uniforms.points = Float32Array.from(points);
-    ubo.uniforms.radii = Float32Array.from(radii);
-    shader.uniforms.points_len = radii.length;
-    ubo.update();
-  }
+  // 5. UPDATE UNIFORMS
+  ubo.uniforms.points = Float32Array.from(paddedShapes.flat());
+  ubo.update();
 
-  if (shader.uniforms.innerColorStart !== model.coloringParams.innerColorStart)
-    shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
-
-  if (shader.uniforms.alphaFallOutEnd !== model.coloringParams.alphaFallOutEnd)
-    shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
-
-  if (!_.isEqual(shader.uniforms.outerColorHSL, model.coloringParams.outerColorHSL))
-    shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
-
-  if (!_.isEqual(shader.uniforms.innerColorHSL, model.coloringParams.innerColorHSL))
-    shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
-
+  shader.uniforms.points_len = paddedShapes.length;
+  shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
+  shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
+  shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
+  shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
   shader.uniforms.threshold = threshold;
   shader.uniforms.outerOffsetRatio = model.starShapeParams.outerOffsetRatio;
 
-  /// gpgpu
-  // bounding box is expanded a bit to give room for inaccuracy at the edges
-  const bb = {
-    minX: Math.min(0, (_.minBy(polygons.flat(), ([x, _]) => x)?.[0] ?? 0) * 0.9),
-    minY: Math.min(0, (_.minBy(polygons.flat(), ([_, y]) => y)?.[1] ?? 0) * 0.9),
-    maxX: Math.min(renderer.width, (_.maxBy(polygons.flat(), ([x, _]) => x)?.[0] ?? 0) * 1.2),
-    maxY: Math.min(renderer.height, (_.maxBy(polygons.flat(), ([_, y]) => y)?.[1] ?? 0) * 1.2),
-  };
+  // 5. Render
+  const meshesContainer = new Container();
 
-  const dfUniforms = {
-    points_len: shapes.length,
-    offsetX: bb.minX,
-    offsetY: bb.minY,
-  };
-
-  // TODO only calc bounding box par which is visible
-  const logicalWidth = bb.maxX - bb.minX; // renderer.width / RESOLUTION;
-  const logicalHeight = bb.maxY - bb.minY; // renderer.height / RESOLUTION;
-  /* @ts-expect-error */
-  const buffer = new Buffer({
-    alloc: logicalHeight * logicalWidth,
-    type: UINT8,
-    width: logicalWidth,
-    height: logicalHeight,
-  });
-
-  const kernel = new Kernel(
-    {
-      output: { outputDistance: buffer },
-    },
-    KernelSource
-  );
-
-  const pointsPadded = shapes.flatMap(({ position }) => [...position, 0, 0]);
-  const radiiPadded = shapes.flatMap(({ radius }) => [radius, 0, 0, 0]);
-  kernel.exec(dfUniforms, new Float32Array(pointsPadded), new Float32Array(radiiPadded));
-  kernel.delete();
-
-  const generateContour = contours()
-    .size([logicalWidth, logicalHeight])
-    .thresholds([threshold * 100]); // threshold is scaled because we use 0-100 in the shader
-  const [sharpPolygons] = generateContour(buffer.data);
-  const polygonsSharp = sharpPolygons.coordinates.map(([coords]) =>
-    coords.map(([x, y]) => [x + dfUniforms.offsetX, y + dfUniforms.offsetY] as [number, number])
-  );
-
-  /// /// RENDER
-  if (polygonsSharp.length > 0) {
+  if (polygonsHighRes.length > 0) {
     const graphics = new Graphics();
     graphics.beginFill(0xff0000, 1);
 
-    polygonsSharp.forEach((arr) => {
+    const polygons = starShapedPolygons ?? polygonsHighRes;
+    polygons.forEach((arr) => {
       graphics.drawPolygon(arr.flat());
     });
-
-    /*
-    stars?.flat().forEach((star) => {
-      graphics.drawCircle(...star.center, star.radius);
-    });
-    */
 
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;

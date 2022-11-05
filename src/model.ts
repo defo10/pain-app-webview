@@ -18,7 +18,7 @@ export interface ColoringParameters {
 export interface StarShapeParameters {
   outerOffsetRatio: number;
   roundness: number;
-  wingLength: number;
+  wingWidth: number;
 }
 
 export interface Model {
