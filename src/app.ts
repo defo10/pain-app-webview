@@ -100,11 +100,11 @@ const updatedModel = (oldModel?: Model): Model => {
     starShapeParams: {
       outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
       roundness: valueFromSlider("roundness"),
-      wingWidth: valueFromSlider("wingLength"),
+      wingWidth: valueFromSlider("wingWidth"),
     },
-    animationType: parseInt(checkedRadioBtn("animation-curve")) as 0 | 1 | 2 | 3, // 0: off, 1: linear-in, 2: linear-out, 3: soft
+    animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
-    amplitude: 0.7,
+    amplitude: valueFromSlider("amplitude"),
     origin: [0, 0],
   };
 };
@@ -235,8 +235,59 @@ const animate = (time: number): void => {
       // save star as global such that is doesnt change during the dissolve
       stars = starsPerPolygon;
     }
+  } else stars = [];
+
+  // 3. apply animation based extra dissolve
+  const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
+    center,
+    radius: radius * (1 - model.dissolve),
+  }));
+  const starsAnimated = _.cloneDeep(stars);
+  const soft = (t: number): number => {
+    const turningPoint = 0.5;
+    if (t < turningPoint) return smoothstep(0, turningPoint, t);
+    return smoothstep(1, turningPoint, t);
+  };
+  const linearIn = (t: number): number => {
+    const turningPoint = 0.9;
+    if (t < turningPoint) return smoothstep(0, turningPoint, t);
+    return smoothstep(1, turningPoint, t);
+  };
+  const linearOut = (t: number): number => {
+    const turningPoints = 0.1;
+    if (t < turningPoints) return smoothstep(0, turningPoints, t);
+    return smoothstep(1, turningPoints, t);
+  };
+  if (model.animationType !== "off") {
+    for (const position of [...outerShapesDissolved, ...starsAnimated.flat(1)]) {
+      const timePerLoop = 1000 / model.frequencyHz;
+      const timeSinceStart = ticker.lastTime % timePerLoop;
+      const t = timeSinceStart / timePerLoop;
+
+      const origin = model.origin;
+      const distanceToOrigin = dist(position.center, origin);
+      const maxDistanceToOrigin = dist([bb.minX, bb.minY], [bb.maxX, bb.maxY]);
+      const scalingFactor = smoothstep(0, 1, distanceToOrigin / maxDistanceToOrigin);
+
+      let motionFn: (t: number) => number;
+      switch (model.animationType) {
+        case "linear-in":
+          motionFn = linearIn;
+          break;
+        case "linear-out":
+          motionFn = linearOut;
+          break;
+        case "soft":
+          motionFn = soft;
+          break;
+      }
+
+      const motion = motionFn(t); // 0..1
+      const amplitudeClamped = lerp(model.amplitude, 1, motion);
+
+      position.radius = position.radius * amplitudeClamped;
+    }
   }
-  if (model.dissolve === 0) stars = [];
 
   // 3. create high res polygon using GPGPU
   /* @ts-expect-error */
@@ -254,14 +305,9 @@ const animate = (time: number): void => {
     KernelSource
   );
 
-  // TODO RATHER USE FOUR VECTOR WITH ONE PADDED
-  // Layout std140 aligns all values on the gpu to 16 bytes, so we need to pad the array to 16 bytes length
+  // Layout std140 aligns all structs, like uniform buffers, on the gpu to 16 bytes, so we need to pad the array to 16 bytes length
   const asPaddedVec4 = ({ center, radius }: Shape): number[] => [...center, radius, 0];
-  const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
-    center,
-    radius: radius * (1 - model.dissolve),
-  }));
-  const paddedShapes = [...outerShapesDissolved.map(asPaddedVec4), ...stars.flat(1).map(asPaddedVec4)];
+  const paddedShapes = [...outerShapesDissolved.map(asPaddedVec4), ...starsAnimated.flat(1).map(asPaddedVec4)];
   kernel.exec(
     {
       points_len: paddedShapes.length,
@@ -315,80 +361,6 @@ const animate = (time: number): void => {
       starShapedPolygons.push(...starShapesSimplified);
     }
   }
-
-  /*
-  // only show underlying star shapes if overlying polygon was shrunk
-  // otherwise this leads to random flicker of the underlying star shapes
-  // around the edges
-  if (model.dissolve > 0) {
-    const uStar = starshape(
-      new Point(0, 0),
-      10,
-      valueFromSlider("outerOffsetRatio"),
-      valueFromSlider("roundness"),
-      valueFromSlider("wingLength")
-    );
-
-    const polygon = new EuclidPolygon(...uStar.map(([x, y]) => new EuclidPoint(x, y)));
-    const centroid = polygon.centroid;
-    const uGeom = new Geometry()
-      .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...uStar.flat()], 2)
-      .addAttribute("aDistance", [1.0, ...uStar.flat().map((_) => 0)], 1);
-    const geometry = uGeom;
-    const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
-    const renderTexture = renderer.generateTexture(mesh);
-
-    const asString = (arr: [number, number]): string => `${arr[0]},${arr[1]}`;
-    const fromString = (str: string): [number, number] => str.split(",").map(parseFloat) as [number, number];
-    const nearestNeighbors = new Map<string, string>();
-    const samplePointsComplex = geometryVM.skeletonGraph.flatMap(
-      (conn) => [conn.from.position, conn.to.position] as [Point, Point]
-    );
-    const samplePoints = simplify(samplePointsComplex, 1.0).map((p) => new Point(p.x, p.y));
-    for (const position of geometryVM.stars.flat()) {
-      const shortestDistance = _.minBy(
-        geometryVM.skeletonGraph.map((conn) =>
-          minimumDistancePointOnLine(conn.from.position, conn.to.position, new Point(...position.center))
-        ),
-        (data) => data.distance
-      );
-      if (shortestDistance) {
-        nearestNeighbors.set(
-          asString(position.center),
-          asString([shortestDistance?.projection.x, shortestDistance?.projection.y])
-        );
-      }
-    }
-
-    for (const pos of geometryVM.stars.flat()) {
-      const timePerIteration = 1000 / model.frequencyHz;
-      const timeSinceStart = ticker.lastTime % timePerIteration;
-      const timeRatio = timeSinceStart / timePerIteration;
-      const amplitude = model.amplitude;
-
-      const linearMidDrop = (t: number): number => {
-        if (t < 0.5) return lerp(0, 1, t * 2);
-        return lerp(1, 0, (t - 0.5) * 2);
-      };
-
-      const origin = model.origin;
-      const distanceToOrigin = Math.sqrt((pos.center[0] - origin[0]) ** 2 + (pos.center[1] - origin[1]) ** 2);
-      const maxDistanceToOrigin = 300;
-      const scalingFactor = smoothstep(0, 1, distanceToOrigin / maxDistanceToOrigin);
-
-      const sprite = new Sprite(renderTexture);
-      sprite.anchor.set(0.5);
-      
-      const t = clamp(model.dissolve * 2, 0.0, 1.0);
-      const nearestNeighbor = nearestNeighbors.get(asString(pos.center)) ?? "";
-      const fromPosition = fromString(nearestNeighbor); // lerpPoints(fromString(nearestNeighborNeighbor), fromString(nearestNeighbor), t);
-      const toPosition: [number, number] = pos.center;
-      sprite.position.set(...lerpPoints(fromPosition, toPosition, t));
-      sprite.scale.set((pos.radius / 10) * lerp(model.amplitude, 1, linearMidDrop(timeRatio)));
-      meshesContainer.addChild(sprite);
-    }
-  }
-  */
 
   // 5. UPDATE UNIFORMS
   ubo.uniforms.points = Float32Array.from(paddedShapes.flat());
