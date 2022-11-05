@@ -104,7 +104,7 @@ const updatedModel = (oldModel?: Model): Model => {
     },
     animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
-    amplitude: valueFromSlider("amplitude"),
+    amplitude: 1 - valueFromSlider("amplitude"),
     origin: [0, 0],
   };
 };
@@ -159,7 +159,7 @@ const init = async (): Promise<void> => {
 const animate = (time: number): void => {
   model = updatedModel(model);
 
-  const padding = 30;
+  const padding = 100;
   const bb = {
     minX: Math.max(
       0,

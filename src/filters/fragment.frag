@@ -3,7 +3,7 @@
 precision mediump float;
 precision mediump int;
 
-#define POINTS_MAX_LEN 100
+#define POINTS_MAX_LEN 200
 
 out vec4 outputColor;
 
