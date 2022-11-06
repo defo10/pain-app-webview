@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import _, { mixin } from "lodash";
+import _ from "lodash";
 import { PainShape } from "./pain_shape";
 import * as clipperLib from "js-angusj-clipper";
 import * as gl from "gl-matrix";
@@ -8,7 +8,6 @@ import {
   Container,
   ENV,
   Graphics,
-  Mesh,
   MIPMAP_MODES,
   Point,
   PRECISION,
@@ -16,28 +15,25 @@ import {
   Sprite,
   Texture,
   UniformGroup,
-  Geometry,
-  DRAW_MODES,
   Ticker,
-  RenderTexture,
-  Framebuffer,
-  Rectangle,
+  PointerEvents,
+  InteractionEvent,
 } from "pixi.js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { Model } from "./model";
-import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
-import { polygon2starshape, starshape } from "./polygon/polygons";
+import { gradientShaderFrom } from "./filters/GradientShader";
+import { polygon2starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
-import { clamp, dist, lerpPoints, minimumDistancePointOnLine } from "./polygon/utils";
+import { dist } from "./polygon/utils";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
-import { isoLines } from "marchingsquares";
 import { CurveInterpolator } from "curve-interpolator";
 import { contours } from "d3-contour";
 import { debug } from "./debug";
 import { Buffer, Kernel, UINT8 } from "./blink";
 import KernelSource from "./filters/kernelsource.frag";
+import { JoyStick } from "./joy";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -71,21 +67,55 @@ const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
 Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
 const assetsPromise = Assets.loadBundle("body");
 
+const joystick = new JoyStick("joyDiv", {
+  internalFillColor: "rgba(255, 0, 0, 1)",
+  externalStrokeColor: "rgba(0, 0, 255, 1)",
+  autoReturnToCenter: false,
+});
+
+const cardinalDirectionToBBPoint = (dir: string): [number, number] => {
+  switch (dir) {
+    case "N":
+      return [0.5, 0];
+    case "NE":
+      return [1, 0];
+    case "E":
+      return [1, 0.5];
+    case "SE":
+      return [1, 1];
+    case "S":
+      return [0.5, 1];
+    case "SW":
+      return [0, 1];
+    case "W":
+      return [0, 0.5];
+    case "NW":
+      return [0, 0];
+    default: // and "C" = center
+      return [0.5, 0.5];
+  }
+};
+
 const updatedModel = (oldModel?: Model): Model => {
-  const painShapes = oldModel?.shapeParams.painShapes.map((p, i) => {
-    const painShape = new PainShape(p.position, valueFromSlider(`radius${i + 1}`));
-    return painShape;
-  }) ?? [
-    new PainShape(new Point(120, 90), valueFromSlider("radius1")),
-    new PainShape(new Point(170, 120), valueFromSlider("radius2")),
-    new PainShape(new Point(140, 200), valueFromSlider("radius3")),
-  ];
+  let painShapes;
+  if (oldModel) {
+    oldModel.shapeParams.painShapes.forEach((p, i) => {
+      p.radius = valueFromSlider(`radius${i + 1}`);
+      // position is updated automatically by the drag handler
+    });
+    painShapes = oldModel.shapeParams.painShapes;
+  } else {
+    painShapes = [
+      new PainShape(new Point(120, 90), valueFromSlider("radius1")),
+      new PainShape(new Point(170, 120), valueFromSlider("radius2")),
+      new PainShape(new Point(140, 200), valueFromSlider("radius3")),
+    ];
+  }
   return {
     shapeParams: {
       considerConnectedLowerBound: 0.75,
       gravitationForceVisibleLowerBound: 0.5,
       painShapes,
-      painShapesDragging: oldModel?.shapeParams.painShapesDragging ?? [false, false, false],
       closeness: valueFromSlider("closeness"),
     },
     dissolve: valueFromSlider("dissolve"),
@@ -105,7 +135,7 @@ const updatedModel = (oldModel?: Model): Model => {
     animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
     amplitude: 1 - valueFromSlider("amplitude"),
-    origin: [0, 0],
+    origin: cardinalDirectionToBBPoint(joystick.GetDir()),
   };
 };
 
@@ -125,10 +155,8 @@ const shader = gradientShaderFrom({
 });
 
 const scene = new Container();
-scene.sortableChildren = true;
 let staleMeshes: Container;
 let stars: Position[][] = [];
-
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 
 const init = async (): Promise<void> => {
@@ -178,7 +206,6 @@ const animate = (time: number): void => {
   const bbWidth = bb.maxX - bb.minX;
   const bbHeight = bb.maxY - bb.minY;
 
-  /// 1. create low res polygon of outer shape
   interface Shape {
     radius: number;
     center: [number, number];
@@ -187,42 +214,46 @@ const animate = (time: number): void => {
     radius: p.radius,
     center: [p.position.x, p.position.y],
   }));
-
-  const sampleRate = 10;
   const threshold = 1 - model.shapeParams.closeness ?? 0.5;
-  const projectedWidth = Math.round(bbWidth / sampleRate);
-  const projectedHeight = Math.round(bbHeight / sampleRate);
 
-  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-  const falloff = (d: number, radius: number): number => {
-    const R = radius * 2.0;
-    if (d >= R) {
-      return 0.0;
-    }
-    const first = 2.0 * Math.pow(d / R, 3.0);
-    const second = -3.0 * Math.pow(d / R, 2.0);
-    return first + second + 1.0;
-  };
-
-  const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
-  for (let m = bb.minY, k = 0; m < bb.maxY; m = m + sampleRate) {
-    for (let n = bb.minX; n < bb.maxX; n = n + sampleRate, k++) {
-      const distances = outerShapes.map(({ radius, center }) => {
-        const d = dist(center, [n + sampleRate * 0.5, m + sampleRate * 0.5]);
-        return falloff(d, radius);
-      });
-      distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
-    }
-  }
-
-  const calcContour = contours().size([projectedWidth, projectedHeight]).thresholds([threshold]);
-  const [polygonsNew] = calcContour(distMatrix);
-  const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
-    coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
-  );
-
-  // 2. fill out with stars if needed
   if (model.dissolve > 0) {
+    /// 1. create low res polygon of outer shape
+    const sampleRate = 10;
+    const projectedWidth = Math.round(bbWidth / sampleRate);
+    const projectedHeight = Math.round(bbHeight / sampleRate);
+
+    // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
+    const falloff = (d: number, radius: number): number => {
+      const R = radius * 2.0;
+      if (d >= R) {
+        return 0.0;
+      }
+      const first = 2.0 * Math.pow(d / R, 3.0);
+      const second = -3.0 * Math.pow(d / R, 2.0);
+      return first + second + 1.0;
+    };
+
+    const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
+    for (let m = 0, k = 0; m < projectedHeight; m++) {
+      for (let n = 0; n < projectedWidth; n++, k++) {
+        const distances = outerShapes.map(({ radius, center }) => {
+          const d = dist(center, [
+            bb.minX + n * sampleRate + sampleRate * 0.5,
+            bb.minY + m * sampleRate + sampleRate * 0.5,
+          ]);
+          return falloff(d, radius);
+        });
+        distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
+      }
+    }
+
+    const calcContour = contours().size([projectedWidth, projectedHeight]).smooth(false).thresholds([threshold]);
+    const [polygonsNew] = calcContour(distMatrix);
+    const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
+      coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
+    );
+
+    // 2. fill out with stars if needed
     if (stars.length === 0) {
       const starsPerPolygon: Position[][] = [];
       for (const polygon of polygonLowRes) {
@@ -235,7 +266,7 @@ const animate = (time: number): void => {
       // save star as global such that is doesnt change during the dissolve
       stars = starsPerPolygon;
     }
-  } else stars = [];
+  } else stars = []; // make sure stars are cleared at each new position
 
   // 3. apply animation based extra dissolve
   const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
@@ -259,15 +290,24 @@ const animate = (time: number): void => {
     return smoothstep(1, turningPoints, t);
   };
   if (model.animationType !== "off") {
-    for (const position of [...outerShapesDissolved, ...starsAnimated.flat(1)]) {
-      const timePerLoop = 1000 / model.frequencyHz;
-      const timeSinceStart = ticker.lastTime % timePerLoop;
-      const t = timeSinceStart / timePerLoop;
+    const [xOriginRatio, yOriginRatio] = model.origin;
+    const origin: [number, number] = [bb.minX + xOriginRatio * bb.maxX, bb.minY + yOriginRatio * bb.maxY];
+    const maxDistanceToOrigin = Math.max(
+      ...[
+        [bb.minX, bb.minY],
+        [bb.maxX, bb.minY],
+        [bb.minX, bb.maxY],
+        [bb.maxX, bb.maxY],
+      ].map((p) => dist(origin, p as [number, number]))
+    );
 
-      const origin = model.origin;
+    for (const position of [...outerShapesDissolved, ...starsAnimated.flat(1)]) {
       const distanceToOrigin = dist(position.center, origin);
-      const maxDistanceToOrigin = dist([bb.minX, bb.minY], [bb.maxX, bb.maxY]);
-      const scalingFactor = smoothstep(0, 1, distanceToOrigin / maxDistanceToOrigin);
+      const distanceRatio = distanceToOrigin / maxDistanceToOrigin;
+      const timePerLoop = 1000 / model.frequencyHz;
+      const timeShift: number = lerp(0, timePerLoop, distanceRatio);
+      const timeSinceStart = (ticker.lastTime + timeShift) % timePerLoop;
+      const t = timeSinceStart / timePerLoop;
 
       let motionFn: (t: number) => number;
       switch (model.animationType) {
@@ -376,6 +416,7 @@ const animate = (time: number): void => {
 
   // 5. Render
   const meshesContainer = new Container();
+  meshesContainer.zIndex = 1;
 
   if (polygonsHighRes.length > 0) {
     const graphics = new Graphics();
@@ -401,36 +442,51 @@ const animate = (time: number): void => {
       baseTexture: true,
     });
   }
-  scene.addChild(meshesContainer);
-  staleMeshes = meshesContainer;
 
   if (model.dissolve === 0) {
     for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
       const painShape = model.shapeParams.painShapes[i];
       const circle = new Graphics();
-      circle.zIndex = 9000;
       circle.beginFill(0xffffff, 0.00001);
       circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);
       circle.endFill();
       circle.interactive = true;
       circle.buttonMode = true;
-      circle.on("pointerdown", (e) => {
-        model.shapeParams.painShapesDragging[i] = true;
+      // @ts-expect-error
+      circle.painShape = painShape;
+      type ExtendedGraphics = Graphics & { dragging: boolean; painShape: PainShape };
+      circle.on("pointerdown", function (this: ExtendedGraphics, event: InteractionEvent) {
+        event.stopPropagation();
+        this.painShape.dragging = true;
+        this.position.x = event.data.global.x;
+        this.position.y = event.data.global.y;
+        this.painShape.position.x = this.position.x;
+        this.painShape.position.y = this.position.y;
       });
-      circle.on("pointermove", (e) => {
-        if (model.shapeParams.painShapesDragging[i]) {
-          painShape.position.x = e.data.global.x;
-          painShape.position.y = e.data.global.y;
+      circle.on("pointerup", function (this: ExtendedGraphics, event: InteractionEvent) {
+        if (this.painShape.dragging) {
+          this.painShape.dragging = false;
+          this.position.x = event.data.global.x;
+          this.position.y = event.data.global.y;
+          this.painShape.position.x = this.position.x;
+          this.painShape.position.y = this.position.y;
         }
       });
-      circle.on("pointerup", (e) => {
-        model.shapeParams.painShapesDragging[i] = false;
-        painShape.position.x = e.data.global.x;
-        painShape.position.y = e.data.global.y;
+      circle.on("pointermove", function (this: ExtendedGraphics, event: InteractionEvent) {
+        if (this.painShape.dragging) {
+          event.stopPropagation();
+          this.position.x = event.data.global.x;
+          this.position.y = event.data.global.y;
+          this.painShape.position.x = this.position.x;
+          this.painShape.position.y = this.position.y;
+        }
       });
       meshesContainer.addChild(circle);
     }
   }
+
+  scene.addChild(meshesContainer);
+  staleMeshes = meshesContainer;
 
   renderer.render(scene);
 };

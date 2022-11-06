@@ -5,7 +5,6 @@ export interface ShapeParameters {
   gravitationForceVisibleLowerBound: number;
   closeness: number;
   painShapes: PainShape[];
-  painShapesDragging: boolean[];
 }
 
 export interface ColoringParameters {
