@@ -128,15 +128,6 @@ export const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{
   return steinerPoints;
 };
 
-function perpendicularVectorAt(polygon: EuclidPolygon, i: number): EuclidPoint {
-  const delta = 0.001;
-  // TODO this marches from the polygon start to point three times for every step -> do it in one go?
-  const pointAhead = polygon.at(i + delta);
-  const pointBehind = polygon.at(i - delta);
-  const tangent = new Line(pointBehind, pointAhead);
-  return tangent.perpendicularVector.unitVector;
-}
-
 function getWingLength(offsetRatio: number, dissolve: number): number {
   return lerp(0, 20, offsetRatio * dissolve * 2);
 }
@@ -244,7 +235,7 @@ export function polygon2starshape(
     ],
     { tension: 0.0 }
   );
-  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 10); // (1 up + 1 down) * 10 intermediary steps
+  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 5); // (1 up + 1 down) * 5 intermediary steps
   points = [...points, points[0]]; // close polygon
   return points;
 }

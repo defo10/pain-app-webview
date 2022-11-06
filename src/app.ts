@@ -34,6 +34,7 @@ import { debug } from "./debug";
 import { Buffer, Kernel, UINT8 } from "./blink";
 import KernelSource from "./filters/kernelsource.frag";
 import { JoyStick } from "./joy";
+import simplify from "simplify-js";
 const lerp = require("interpolation").lerp;
 const smoothstep = require("interpolation").smoothstep;
 
@@ -371,29 +372,41 @@ const animate = (time: number): void => {
   if (model.starShapeParams.outerOffsetRatio > 0) {
     starShapedPolygons = [];
     for (const contourComplex of polygonsHighRes) {
-      // simplified polygon leads to softer edges because the angles are lower
-      const interpolator = new CurveInterpolator(contourComplex, { tension: 0.0 });
-      const contourSmooth: Array<[number, number]> = interpolator.getPoints(clamp(contourComplex.length, 40, 150));
-      const contour = contourSmooth;
-
       const points = polygon2starshape(
-        contour.reverse(), // reverse because the star shape is drawn ccw
+        contourComplex.reverse(), // reverse because the star shape is drawn ccw
         model.starShapeParams.outerOffsetRatio,
         model.starShapeParams.roundness,
         model.starShapeParams.wingWidth,
         model.dissolve
       );
 
+      if (points.length < 40) {
+        starShapedPolygons.push(points);
+        continue;
+      }
+
       const scalingFactor = 1e8;
-      const starShapeScaled = points.map(([x, y]) => ({
-        x: Math.round(x * scalingFactor),
-        y: Math.round(y * scalingFactor),
-      }));
+      const starShapeScaled = simplify(
+        points.map(([x, y]) => ({ x, y })),
+        1
+      );
+
+      for (const p of starShapeScaled) {
+        p.x = Math.round(p.x * scalingFactor);
+        p.y = Math.round(p.y * scalingFactor);
+      }
+
       const starShapesSimplified =
         clipper
           ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
           .filter((polygon) => polygon.length >= 3)
-          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number])) ?? [];
+          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number]))
+          .map((polygon) =>
+            simplify(
+              polygon.map(([x, y]) => ({ x, y })),
+              0.5
+            ).map(({ x, y }) => [x, y] as [number, number])
+          ) ?? [];
 
       starShapedPolygons.push(...starShapesSimplified);
     }
