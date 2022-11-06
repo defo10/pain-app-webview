@@ -26,7 +26,7 @@ import { Model } from "./model";
 import { gradientShaderFrom } from "./filters/GradientShader";
 import { polygon2starshape } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
-import { dist } from "./polygon/utils";
+import { clamp, dist } from "./polygon/utils";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
 import { CurveInterpolator } from "curve-interpolator";
 import { contours } from "d3-contour";
@@ -367,24 +367,21 @@ const animate = (time: number): void => {
   );
 
   // 4. add spikes to polygons
-  const wingLength = (): number => {
-    return lerp(0, 20, model.starShapeParams.outerOffsetRatio);
-  };
-
   let starShapedPolygons: Array<Array<[number, number]>> | undefined;
   if (model.starShapeParams.outerOffsetRatio > 0) {
     starShapedPolygons = [];
     for (const contourComplex of polygonsHighRes) {
       // simplified polygon leads to softer edges because the angles are lower
       const interpolator = new CurveInterpolator(contourComplex, { tension: 0.0 });
-      const contourSmooth: Array<[number, number]> = interpolator.getPoints(Math.min(contourComplex.length, 200));
+      const contourSmooth: Array<[number, number]> = interpolator.getPoints(clamp(contourComplex.length, 40, 150));
       const contour = contourSmooth;
 
-      const { points } = polygon2starshape(
-        contour,
-        wingLength(),
+      const points = polygon2starshape(
+        contour.reverse(), // reverse because the star shape is drawn ccw
+        model.starShapeParams.outerOffsetRatio,
         model.starShapeParams.roundness,
-        model.starShapeParams.wingWidth
+        model.starShapeParams.wingWidth,
+        model.dissolve
       );
 
       const scalingFactor = 1e8;
