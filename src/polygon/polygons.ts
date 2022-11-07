@@ -173,20 +173,20 @@ function traversePolygonAtSteps(polygon: EuclidPolygon, I: Transformation[]): Ar
  * go inwards.
  */
 export function polygon2starshape(
-  contour: Array<[number, number]>,
+  contourUnsorted: Array<[number, number]>,
   outerOffsetRatio: number,
   roundnessRatio: number,
-  wingWidth: number,
+  wings: number,
   dissolve: number
 ): Array<[number, number]> {
+  const mostRight = _.maxBy(contourUnsorted, ([x, y]) => x) as [number, number];
+  const indexMostRight = contourUnsorted.findIndex((p) => p === mostRight);
+  const contour = [...contourUnsorted.slice(indexMostRight), ...contourUnsorted.slice(0, indexMostRight)];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
-  const scaling = clamp(1 - dissolve, 0.2, 1);
+  const scaling = clamp(1 - dissolve, 0.5, 1);
   const wingLength = getWingLength(outerOffsetRatio, scaling);
-  wingWidth = scaling * wingWidth;
   // clamp so that there are at least 5 wings and at most 50
-  const sizeAwareWingWidth = clamp(wingWidth, polygon.circumference / 50, polygon.circumference / 5);
-  const numWings = Math.floor(polygon.circumference / sizeAwareWingWidth);
-  if (numWings < 3) return contour;
+  const numWings = wings; // clamp(Math.round(wings * scaling), 5, 50);
   const step = 1.0 / numWings;
   const midDelta = 0.5 * step;
 

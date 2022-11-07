@@ -131,7 +131,7 @@ const updatedModel = (oldModel?: Model): Model => {
     starShapeParams: {
       outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
       roundness: valueFromSlider("roundness"),
-      wingWidth: valueFromSlider("wingWidth"),
+      wings: valueFromSlider("wings"),
     },
     animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
@@ -373,10 +373,10 @@ const animate = (time: number): void => {
     starShapedPolygons = [];
     for (const contourComplex of polygonsHighRes) {
       const points = polygon2starshape(
-        contourComplex.reverse(), // reverse because the star shape is drawn ccw
+        contourComplex.reverse(), // .reverse(), // reverse because the star shape is drawn ccw
         model.starShapeParams.outerOffsetRatio,
         model.starShapeParams.roundness,
-        model.starShapeParams.wingWidth,
+        model.starShapeParams.wings,
         model.dissolve
       );
 
