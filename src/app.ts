@@ -388,7 +388,7 @@ const animate = (time: number): void => {
       const scalingFactor = 1e8;
       const starShapeScaled = simplify(
         points.map(([x, y]) => ({ x, y })),
-        1
+        0.1
       );
 
       for (const p of starShapeScaled) {

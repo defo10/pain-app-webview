@@ -129,7 +129,7 @@ export const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{
 };
 
 function getWingLength(offsetRatio: number, dissolve: number): number {
-  return lerp(0, 20, offsetRatio * dissolve * 2);
+  return lerp(0, 20, offsetRatio * (dissolve * 4));
 }
 
 interface Transformation {
@@ -184,7 +184,7 @@ export function polygon2starshape(
   const contour = [...contourUnsorted.slice(indexMostRight), ...contourUnsorted.slice(0, indexMostRight)];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
   const scaling = clamp(1 - dissolve, 0.5, 1);
-  const wingLength = getWingLength(outerOffsetRatio, scaling);
+  const wingLength = getWingLength(outerOffsetRatio, scaling) / 2;
   // clamp so that there are at least 5 wings and at most 50
   const numWings = wings; // clamp(Math.round(wings * scaling), 5, 50);
   const step = 1.0 / numWings;
@@ -210,7 +210,7 @@ export function polygon2starshape(
     // the start (i = 0) is on the right side and goes left/ccw
     const base: Transformation = {
       i,
-      transform: identity,
+      transform: (p, u) => offset(p, u, -wingLength),
     };
     const outerPointRight: Transformation = {
       i: midPointI - horizontalDelta,
@@ -235,7 +235,7 @@ export function polygon2starshape(
     ],
     { tension: 0.0 }
   );
-  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 5); // (1 up + 1 down) * 5 intermediary steps
+  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 10); // (1 up + 1 down) * 5 intermediary steps
   points = [...points, points[0]]; // close polygon
   return points;
 }
