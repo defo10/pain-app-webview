@@ -35,8 +35,7 @@ import { Buffer, Kernel, UINT8 } from "./blink";
 import KernelSource from "./filters/kernelsource.frag";
 import { JoyStick } from "./joy";
 import simplify from "simplify-js";
-const lerp = require("interpolation").lerp;
-const smoothstep = require("interpolation").smoothstep;
+import { AnimationBuilder } from "./animation_builder";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -295,72 +294,36 @@ const animate = (time: number): void => {
     }
   } else stars = []; // make sure stars are cleared at each new position
 
-  // 3. apply animation
+  // 3. prepare animation builder, apply size and radius animation
+  const animationBuilder = new AnimationBuilder(
+    model.origin,
+    bb,
+    model.animationType,
+    model.frequencyHz,
+    ticker.lastTime,
+    model.amplitude
+  );
+
   const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
     center,
-    radius: radius * (1 - model.dissolve),
+    radius:
+      model.animationType !== "off" && model.animationParamter === "dissolve"
+        ? radius * (1 - model.dissolve) * animationBuilder.t(center)
+        : radius * (1 - model.dissolve),
   }));
   const starsAnimated = _.cloneDeep(stars);
-  const soft = (t: number): number => {
-    const turningPoint = 0.5;
-    if (t < turningPoint) return smoothstep(0, turningPoint, t);
-    return smoothstep(1, turningPoint, t);
-  };
-  const linearIn = (t: number): number => {
-    const turningPoint = 0.9;
-    if (t < turningPoint) return smoothstep(0, turningPoint, t);
-    return smoothstep(1, turningPoint, t);
-  };
-  const linearOut = (t: number): number => {
-    const turningPoints = 0.1;
-    if (t < turningPoints) return smoothstep(0, turningPoints, t);
-    return smoothstep(1, turningPoints, t);
-  };
-  const [xOriginRatio, yOriginRatio] = model.origin;
-  const origin: [number, number] = [bb.minX + xOriginRatio * bb.maxX, bb.minY + yOriginRatio * bb.maxY];
-  const maxDistanceToOrigin = Math.max(
-    ...[
-      [bb.minX, bb.minY],
-      [bb.maxX, bb.minY],
-      [bb.minX, bb.maxY],
-      [bb.maxX, bb.maxY],
-    ].map((p) => dist(origin, p as [number, number]))
-  );
 
   if (model.animationType !== "off" && model.animationParamter === "radius") {
     for (const position of [...outerShapesDissolved, ...starsAnimated.flat(1)]) {
-      const distanceToOrigin = dist(position.center, origin);
-      const distanceRatio = distanceToOrigin / maxDistanceToOrigin;
-      const timePerLoop = 1000 / model.frequencyHz;
-      const timeShift: number = lerp(0, timePerLoop, distanceRatio);
-      const timeSinceStart = (ticker.lastTime + timeShift) % timePerLoop;
-      const t = timeSinceStart / timePerLoop;
-
-      let motionFn: (t: number) => number;
-      switch (model.animationType) {
-        case "linear-in":
-          motionFn = linearIn;
-          break;
-        case "linear-out":
-          motionFn = linearOut;
-          break;
-        case "soft":
-          motionFn = soft;
-          break;
-      }
-
-      const motion = motionFn(t); // 0..1
-      const amplitudeClampedMotion = lerp(model.amplitude, 1, motion);
-
-      position.radius = position.radius * amplitudeClampedMotion;
+      position.radius = position.radius * animationBuilder.t(position.center);
     }
   }
 
   // update animation uniforms for all cases but radius
-  shader.uniforms.animationOrigin = Float32Array.from(origin);
+  shader.uniforms.animationOrigin = Float32Array.from(animationBuilder.origin);
   shader.uniforms.timePerLoop = 1000 / model.frequencyHz;
   shader.uniforms.timeSinceStart = ticker.lastTime % (1000 / model.frequencyHz);
-  shader.uniforms.maxDistanceToOrigin = maxDistanceToOrigin;
+  shader.uniforms.maxDistanceToOrigin = animationBuilder.maxDistanceToOrigin;
   shader.uniforms.amplitude = model.amplitude;
   shader.uniforms.animationParameterFlag = animationParameterToFlag(model.animationParamter);
   shader.uniforms.motionFnFlag = motionFnToFlag(model.animationType);
@@ -407,10 +370,24 @@ const animate = (time: number): void => {
   if (model.outerOffsetRatio > 0) {
     starShapedPolygons = [];
     for (const contourComplex of polygonsHighRes) {
+      const center: [number, number] = [
+        (contourComplex[0][0] +
+          contourComplex[Math.floor(contourComplex.length / 2)][0] +
+          contourComplex[contourComplex.length - 1][0]) /
+          3,
+        (contourComplex[0][1] +
+          contourComplex[Math.floor(contourComplex.length / 2)][1] +
+          contourComplex[contourComplex.length - 1][1]) /
+          3,
+      ];
       const points = polygon2starshape(
         contourComplex.reverse(), // .reverse(), // reverse because the star shape is drawn ccw
-        model.outerOffsetRatio,
-        model.roundness,
+        model.animationType !== "off" && model.animationParamter === "outerOffsetRatio"
+          ? model.outerOffsetRatio * animationBuilder.t(center)
+          : model.outerOffsetRatio,
+        model.animationType !== "off" && model.animationParamter === "roundness"
+          ? model.roundness * animationBuilder.t(center)
+          : model.roundness,
         model.wings,
         model.dissolve
       );
