@@ -97,14 +97,38 @@ const cardinalDirectionToBBPoint = (dir: string): [number, number] => {
   }
 };
 
+const animationParameterToFlag = (param: string): number => {
+  switch (param) {
+    case "innerColorStart":
+      return 0;
+    case "alphaFallOutEnd":
+      return 1;
+    default:
+      return -1;
+  }
+};
+
+const motionFnToFlag = (param: string): number => {
+  switch (param) {
+    case "soft":
+      return 0;
+    case "linear-in":
+      return 1;
+    case "linear-out":
+      return 2;
+    default: // off
+      return -1;
+  }
+};
+
 const updatedModel = (oldModel?: Model): Model => {
   let painShapes;
   if (oldModel) {
-    oldModel.shapeParams.painShapes.forEach((p, i) => {
+    oldModel.painShapes.forEach((p, i) => {
       p.radius = valueFromSlider(`radius${i + 1}`);
       // position is updated automatically by the drag handler
     });
-    painShapes = oldModel.shapeParams.painShapes;
+    painShapes = oldModel.painShapes;
   } else {
     painShapes = [
       new PainShape(new Point(120, 90), valueFromSlider("radius1")),
@@ -113,30 +137,31 @@ const updatedModel = (oldModel?: Model): Model => {
     ];
   }
   return {
-    shapeParams: {
-      considerConnectedLowerBound: 0.75,
-      gravitationForceVisibleLowerBound: 0.5,
-      painShapes,
-      closeness: valueFromSlider("closeness"),
-    },
+    considerConnectedLowerBound: 0.75,
+    gravitationForceVisibleLowerBound: 0.5,
+    painShapes,
+    closeness: valueFromSlider("closeness"),
     dissolve: valueFromSlider("dissolve"),
-    coloringParams: {
-      innerColorStart: valueFromSlider("colorShift"),
-      alphaFallOutEnd: valueFromSlider("alphaRatio"),
-      innerColorHSL: innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
-      outerColorHSL:
-        outerColorPicker(checkedRadioBtn("outerColor")) ??
-        innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
-    },
-    starShapeParams: {
-      outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
-      roundness: valueFromSlider("roundness"),
-      wings: valueFromSlider("wings"),
-    },
+    innerColorStart: valueFromSlider("colorShift"),
+    alphaFallOutEnd: valueFromSlider("alphaRatio"),
+    innerColorHSL: innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
+    outerColorHSL:
+      outerColorPicker(checkedRadioBtn("outerColor")) ??
+      innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
+    outerOffsetRatio: valueFromSlider("outerOffsetRatio"),
+    roundness: valueFromSlider("roundness"),
+    wings: valueFromSlider("wings"),
     animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
     amplitude: 1 - valueFromSlider("amplitude"),
     origin: cardinalDirectionToBBPoint(joystick.GetDir()),
+    animationParamter: checkedRadioBtn("animation-parameter") as
+      | "radius"
+      | "dissolve"
+      | "innerColorStart"
+      | "alphaFallOutEnd"
+      | "outerOffsetRatio"
+      | "roundness",
   };
 };
 
@@ -153,6 +178,13 @@ const shader = gradientShaderFrom({
   points_ubo: ubo,
   points_len: 0,
   threshold: 0.5,
+  animationOrigin: Float32Array.from([]),
+  timePerLoop: 0,
+  timeSinceStart: 0,
+  maxDistanceToOrigin: 0,
+  amplitude: 0,
+  animationParameterFlag: animationParameterToFlag(model.animationParamter),
+  motionFnFlag: motionFnToFlag(model.animationType),
 });
 
 const scene = new Container();
@@ -190,16 +222,10 @@ const animate = (time: number): void => {
 
   const padding = 100;
   const bb = {
-    minX: Math.max(
-      0,
-      (_.minBy(model.shapeParams.painShapes, (ps) => ps.position.x - ps.radius)?.position.x ?? 0) - padding
-    ),
-    minY: Math.max(
-      0,
-      (_.minBy(model.shapeParams.painShapes, (ps) => ps.position.y - ps.radius)?.position.y ?? 0) - padding
-    ),
-    maxX: (_.maxBy(model.shapeParams.painShapes, (ps) => ps.position.x + ps.radius)?.position.x ?? 0) + padding,
-    maxY: (_.maxBy(model.shapeParams.painShapes, (ps) => ps.position.y + ps.radius)?.position.y ?? 0) + padding,
+    minX: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.x - ps.radius)?.position.x ?? 0) - padding),
+    minY: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.y - ps.radius)?.position.y ?? 0) - padding),
+    maxX: (_.maxBy(model.painShapes, (ps) => ps.position.x + ps.radius)?.position.x ?? 0) + padding,
+    maxY: (_.maxBy(model.painShapes, (ps) => ps.position.y + ps.radius)?.position.y ?? 0) + padding,
   };
 
   const offsetX = bb.minX;
@@ -211,11 +237,11 @@ const animate = (time: number): void => {
     radius: number;
     center: [number, number];
   }
-  const outerShapes: Shape[] = model.shapeParams.painShapes.map((p) => ({
+  const outerShapes: Shape[] = model.painShapes.map((p) => ({
     radius: p.radius,
     center: [p.position.x, p.position.y],
   }));
-  const threshold = 1 - model.shapeParams.closeness ?? 0.5;
+  const threshold = 1 - model.closeness ?? 0.5;
 
   if (model.dissolve > 0) {
     /// 1. create low res polygon of outer shape
@@ -269,7 +295,7 @@ const animate = (time: number): void => {
     }
   } else stars = []; // make sure stars are cleared at each new position
 
-  // 3. apply animation based extra dissolve
+  // 3. apply animation
   const outerShapesDissolved = outerShapes.map(({ center, radius }) => ({
     center,
     radius: radius * (1 - model.dissolve),
@@ -290,18 +316,18 @@ const animate = (time: number): void => {
     if (t < turningPoints) return smoothstep(0, turningPoints, t);
     return smoothstep(1, turningPoints, t);
   };
-  if (model.animationType !== "off") {
-    const [xOriginRatio, yOriginRatio] = model.origin;
-    const origin: [number, number] = [bb.minX + xOriginRatio * bb.maxX, bb.minY + yOriginRatio * bb.maxY];
-    const maxDistanceToOrigin = Math.max(
-      ...[
-        [bb.minX, bb.minY],
-        [bb.maxX, bb.minY],
-        [bb.minX, bb.maxY],
-        [bb.maxX, bb.maxY],
-      ].map((p) => dist(origin, p as [number, number]))
-    );
+  const [xOriginRatio, yOriginRatio] = model.origin;
+  const origin: [number, number] = [bb.minX + xOriginRatio * bb.maxX, bb.minY + yOriginRatio * bb.maxY];
+  const maxDistanceToOrigin = Math.max(
+    ...[
+      [bb.minX, bb.minY],
+      [bb.maxX, bb.minY],
+      [bb.minX, bb.maxY],
+      [bb.maxX, bb.maxY],
+    ].map((p) => dist(origin, p as [number, number]))
+  );
 
+  if (model.animationType !== "off" && model.animationParamter === "radius") {
     for (const position of [...outerShapesDissolved, ...starsAnimated.flat(1)]) {
       const distanceToOrigin = dist(position.center, origin);
       const distanceRatio = distanceToOrigin / maxDistanceToOrigin;
@@ -324,11 +350,20 @@ const animate = (time: number): void => {
       }
 
       const motion = motionFn(t); // 0..1
-      const amplitudeClamped = lerp(model.amplitude, 1, motion);
+      const amplitudeClampedMotion = lerp(model.amplitude, 1, motion);
 
-      position.radius = position.radius * amplitudeClamped;
+      position.radius = position.radius * amplitudeClampedMotion;
     }
   }
+
+  // update animation uniforms for all cases but radius
+  shader.uniforms.animationOrigin = Float32Array.from(origin);
+  shader.uniforms.timePerLoop = 1000 / model.frequencyHz;
+  shader.uniforms.timeSinceStart = ticker.lastTime % (1000 / model.frequencyHz);
+  shader.uniforms.maxDistanceToOrigin = maxDistanceToOrigin;
+  shader.uniforms.amplitude = model.amplitude;
+  shader.uniforms.animationParameterFlag = animationParameterToFlag(model.animationParamter);
+  shader.uniforms.motionFnFlag = motionFnToFlag(model.animationType);
 
   // 3. create high res polygon using GPGPU
   /* @ts-expect-error */
@@ -369,14 +404,14 @@ const animate = (time: number): void => {
 
   // 4. add spikes to polygons
   let starShapedPolygons: Array<Array<[number, number]>> | undefined;
-  if (model.starShapeParams.outerOffsetRatio > 0) {
+  if (model.outerOffsetRatio > 0) {
     starShapedPolygons = [];
     for (const contourComplex of polygonsHighRes) {
       const points = polygon2starshape(
         contourComplex.reverse(), // .reverse(), // reverse because the star shape is drawn ccw
-        model.starShapeParams.outerOffsetRatio,
-        model.starShapeParams.roundness,
-        model.starShapeParams.wings,
+        model.outerOffsetRatio,
+        model.roundness,
+        model.wings,
         model.dissolve
       );
 
@@ -417,12 +452,12 @@ const animate = (time: number): void => {
   ubo.update();
 
   shader.uniforms.points_len = paddedShapes.length;
-  shader.uniforms.innerColorStart = model.coloringParams.innerColorStart;
-  shader.uniforms.alphaFallOutEnd = model.coloringParams.alphaFallOutEnd;
-  shader.uniforms.outerColorHSL = model.coloringParams.outerColorHSL;
-  shader.uniforms.innerColorHSL = model.coloringParams.innerColorHSL;
+  shader.uniforms.innerColorStart = model.innerColorStart;
+  shader.uniforms.alphaFallOutEnd = model.alphaFallOutEnd;
+  shader.uniforms.outerColorHSL = model.outerColorHSL;
+  shader.uniforms.innerColorHSL = model.innerColorHSL;
   shader.uniforms.threshold = threshold;
-  shader.uniforms.outerOffsetRatio = model.starShapeParams.outerOffsetRatio;
+  shader.uniforms.outerOffsetRatio = model.outerOffsetRatio;
 
   // 5. Render
   const meshesContainer = new Container();
@@ -454,8 +489,8 @@ const animate = (time: number): void => {
   }
 
   if (model.dissolve === 0) {
-    for (let i = 0; i < model.shapeParams.painShapes.length; i++) {
-      const painShape = model.shapeParams.painShapes[i];
+    for (let i = 0; i < model.painShapes.length; i++) {
+      const painShape = model.painShapes[i];
       const circle = new Graphics();
       circle.beginFill(0xffffff, 0.00001);
       circle.drawCircle(painShape.position.x, painShape.position.y, painShape.radius);

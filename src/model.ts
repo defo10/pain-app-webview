@@ -20,14 +20,15 @@ export interface StarShapeParameters {
   wings: number;
 }
 
-export interface Model {
-  shapeParams: ShapeParameters;
-  coloringParams: ColoringParameters;
-  dissolve: number;
-  starShapeParams: StarShapeParameters;
-  animationType: "off" | "linear-in" | "linear-out" | "soft";
-  /** in hz */
-  frequencyHz: number;
-  amplitude: number;
-  origin: [number, number];
-}
+export type Model = StarShapeParameters &
+  ColoringParameters &
+  ShapeParameters & {
+    dissolve: number;
+    animationType: "off" | "linear-in" | "linear-out" | "soft";
+    /** in hz */
+    frequencyHz: number;
+    amplitude: number;
+    origin: [number, number];
+    animationParamter: "radius" | "dissolve" | "innerColorStart" | "alphaFallOutEnd" | "outerOffsetRatio" | "roundness";
+    [key: string]: any; // have this here to allow dynamic accessing
+  };

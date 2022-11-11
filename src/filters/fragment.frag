@@ -24,6 +24,45 @@ uniform int points_len;
 uniform float threshold;
 uniform float outerOffsetRatio;
 
+uniform highp float timePerLoop;
+uniform highp float timeSinceStart;
+uniform float maxDistanceToOrigin;
+uniform float amplitude;
+uniform int animationParameterFlag;
+uniform int motionFnFlag;
+uniform vec2 animationOrigin;
+
+float soft(in float t) {
+  float turningPoint = 0.5;
+  if (t < turningPoint) return smoothstep(0., turningPoint, t);
+  return smoothstep(1., turningPoint, t);
+}
+
+float linearIn(in float t) {
+  float turningPoint = 0.9;
+  if (t < turningPoint) return smoothstep(0., turningPoint, t);
+  return smoothstep(1., turningPoint, t);
+}
+
+float linearOut(in float t) {
+  float turningPoint = 0.1;
+  if (t < turningPoint) return smoothstep(0., turningPoint, t);
+  return smoothstep(1., turningPoint, t);
+}
+
+float motionFn(in int flag, in float t) {
+  switch(flag) {
+    case 0:
+      return soft(t);
+    case 1:
+      return linearIn(t);
+    case 2:
+      return linearOut(t);
+    default: // off
+      return 1.0;
+  }
+}
+
 // src https://www.shadertoy.com/view/XljGzV
 vec3 hsl2rgb( in vec3 c )
 {
@@ -67,17 +106,6 @@ vec3 rgb2hsl( in vec3 c ){
 }
 
 // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-float falloffOld( in float d, in float radius ) {
-  float R = radius * 2.0;
-  if (d >= R) {
-    return 0.0;
-  }
-  float first = -0.44444 * pow(d / R, 6.0);
-  float second = 1.88889 * pow(d / R, 4.0);
-  float third = -2.44444 * pow(d / R, 2.0);
-  return first + second + third + 1.0;
-}
-
 float falloff( in float d, in float radius ) {
   float R = radius * 2.0;
   if (d >= R) {
@@ -94,6 +122,13 @@ void main(void) {
 
     vec2 screenCoord = vTextureCoord * inputSize.xy + outputFrame.xy;
 
+    float distanceToOrigin = distance(screenCoord, animationOrigin);
+    float distanceRatio = distanceToOrigin / maxDistanceToOrigin;
+    float timeShift = mix(0., timePerLoop, distanceRatio);
+    float t = mod(timeSinceStart + timeShift, timePerLoop) / timePerLoop;
+    float motion = motionFn(motionFnFlag, t);
+    float amplitudeClampedMotion = mix(amplitude, 1.0, motion);
+
     // dist \in [0..1], 0 being farthest away
     float df = 0.0;
     for (int n = 0; n < points_len; n++) {
@@ -105,18 +140,18 @@ void main(void) {
     float pct = smoothstep(threshold, 1.0, df);
 
     // pct is 0.0 at edge and 1.0 at center
-    float innerColorPct = smoothstep(0., innerColorStart * 2.0, pct);
+    float innerColorAnimatedPct = (animationParameterFlag == 0) ? pct * amplitudeClampedMotion : pct;
+    float innerColorPct = smoothstep(0., innerColorStart * 2.0, innerColorAnimatedPct);
     vec4 innerColor = vec4(hsl2rgb(innerColorHSL), 1.0);
     vec4 outerColor = vec4(hsl2rgb(outerColorHSL), 1.0);
     vec4 colorGradient = mix(outerColor, innerColor, innerColorPct);
     
-
     if (outerOffsetRatio > 0.0) {
       outputColor = colorGradient;
       return;
     } else {
-      float backgroundPct = smoothstep(0.0, alphaFallOutEnd * 1.5, pct);
-      // pre-multiply alpha
+      float backgroundAnimatedPct = (animationParameterFlag == 1) ? pct * amplitudeClampedMotion : pct;
+      float backgroundPct = smoothstep(0.0, alphaFallOutEnd * 1.5, backgroundAnimatedPct);
       outputColor = vec4(colorGradient.rgb * backgroundPct, backgroundPct);
     }
 }

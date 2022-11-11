@@ -104,6 +104,22 @@
     <form>
       <legend>Animation:</legend>
       <div>
+        <legend>Parameter:</legend>
+        <input type="radio" id="radius" value="radius" name="animation-parameter" checked>
+        <label for="radius">Größe</label>
+        <input type="radio" id="dissolve" value="dissolve" name="animation-parameter">
+        <label for="dissolve">Menge</label>
+        <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter">
+        <label for="innerColorStart">Farbverlauf</label>
+        <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter">
+        <label for="alphaFallOutEnd">Transparenz</label>
+        <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter">
+        <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
+        <input type="radio" id="roundness" value="roundness" name="animation-parameter">
+        <label for="roundness">Rund/Zackig</label>
+      </div>
+      <div>
+        <legend>Verhalten:</legend>
         <input type="radio" id="off" value="off" name="animation-curve" checked>
         <label for="off">Aus</label>
         <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
