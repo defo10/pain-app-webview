@@ -129,7 +129,7 @@ export const samplePolygon = (contour: Array<{ x: number; y: number }>): Array<{
 };
 
 function getWingLength(offsetRatio: number, dissolve: number): number {
-  return lerp(0, 20, offsetRatio * (dissolve * 4));
+  return lerp(0, 20, offsetRatio * dissolve);
 }
 
 interface Transformation {
@@ -155,9 +155,7 @@ function traversePolygonAtSteps(polygon: EuclidPolygon, I: Transformation[]): Ar
 
       const delta = 0.0001;
       const pointAhead = e.at(iOnEdge + delta);
-      const pointBehind = e.at(iOnEdge - delta);
-      const tangent = new Line(pointBehind, pointAhead);
-      // TODO this is not the midpoints perpendicular, but line rotated?
+      const tangent = new Line(e.at(iOnEdge), pointAhead);
       const perpendicular = tangent.perpendicularVector.unitVector;
 
       transformedPolygon.push(nextSmallest.transform(pointAtI, perpendicular));
@@ -179,18 +177,24 @@ export function polygon2starshape(
   wings: number,
   dissolve: number
 ): Array<[number, number]> {
-  const mostRight = _.maxBy(contourUnsorted, ([x, y]) => x) as [number, number];
-  const indexMostRight = contourUnsorted.findIndex((p) => p === mostRight);
-  const contour = [...contourUnsorted.slice(indexMostRight), ...contourUnsorted.slice(0, indexMostRight)];
+  const smoothInterpolator = new CurveInterpolator(
+    [...contourUnsorted, lerpPoints(contourUnsorted[contourUnsorted.length - 1], contourUnsorted[0], 0.9)],
+    { tension: 0.0 }
+  );
+  const smoothContour = smoothInterpolator.getPoints(200) as Array<[number, number]>;
+  const mostRight = _.maxBy(smoothContour, ([x, y]) => x) as [number, number];
+  const indexMostRight = smoothContour.findIndex((p) => p === mostRight);
+  const contour = [...smoothContour.slice(indexMostRight), ...smoothContour.slice(0, indexMostRight)];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
   const scaling = clamp(1 - dissolve, 0.5, 1);
-  const wingLength = getWingLength(outerOffsetRatio, scaling) / 2;
+  // ratio how much polygon deflates, 0 means no inward deflation, 1 means completely inwards
+  const innerOuterRatio = 1 - dissolve;
+  const wingLength = getWingLength(outerOffsetRatio, scaling);
   // clamp so that there are at least 5 wings and at most 50
-  const numWings = wings; // clamp(Math.round(wings * scaling), 5, 50);
+  const numWings = clamp(wings, 5, 20);
   const step = 1.0 / numWings;
   const midDelta = 0.5 * step;
 
-  const identity = (p: EuclidPoint, uPerpendicular: EuclidPoint): [number, number] => [p.x, p.y];
   const offset = (p: EuclidPoint, uPerpendicular: EuclidPoint, offsetScaling: number): [number, number] => {
     const offsetPoint = p.add(uPerpendicular.scale(offsetScaling));
     return [offsetPoint.x, offsetPoint.y];
@@ -203,26 +207,26 @@ export function polygon2starshape(
     const horizontalDelta: number = lerp(1e-3, midDelta * 0.7, roundnessRatio);
     // this is the ratio applied to outerOffset to change the heights of the points defining
     // the left and right side of the wing
-    const verticalOffsetScaling: number = lerp(0.6, 0.8, roundnessRatio);
+    const verticalOffsetScaling: number = lerp(0.4, 0.7, roundnessRatio);
 
     // for terminoloy, consider this strip as a horizontal line with innerPoint being on the line,
     // and outerPoint being shifted north by outerOffset, i.e. outerPoint is the wing tip
     // the start (i = 0) is on the right side and goes left/ccw
     const base: Transformation = {
       i,
-      transform: (p, u) => offset(p, u, -wingLength),
+      transform: (p, u) => offset(p, u, -wingLength * innerOuterRatio),
     };
     const outerPointRight: Transformation = {
       i: midPointI - horizontalDelta,
-      transform: (p, u) => offset(p, u, wingLength * verticalOffsetScaling),
+      transform: (p, u) => offset(p, u, wingLength * (1 - innerOuterRatio) * verticalOffsetScaling),
     };
     const outerPoint: Transformation = {
       i: midPointI,
-      transform: (p, u) => offset(p, u, wingLength),
+      transform: (p, u) => offset(p, u, wingLength * (1 - innerOuterRatio)),
     };
     const outerPointLeft: Transformation = {
       i: midPointI + horizontalDelta,
-      transform: (p, u) => offset(p, u, wingLength * verticalOffsetScaling),
+      transform: (p, u) => offset(p, u, wingLength * (1 - innerOuterRatio) * verticalOffsetScaling),
     };
     transformations.push(base, outerPointRight, outerPoint, outerPointLeft);
   }
