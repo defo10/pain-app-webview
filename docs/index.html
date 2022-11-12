@@ -21,26 +21,6 @@
       margin: 18px;
     }
 
-    #schmerzbereich {
-      top: 5%;
-      left: 5%;
-    }
-
-    #farbe {
-      right: 5%;
-      top: 5%
-    }
-
-    #materialitaet {
-      left: 5%;
-      bottom: 20%;
-    }
-
-    #form {
-      left: 5%;
-      top: 40%;
-    }
-
     #animation {
       right: 5%;
       top: 30%;
@@ -50,6 +30,10 @@
       background-color: rgb(249, 249, 249);
       box-shadow: 0.4px 0.4px 5px grey;
       padding: 8px 16px 28px 16px;
+      width: 20%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5em;
     }
 
     h3 {
@@ -57,24 +41,34 @@
       font-size: 1.1em;
     }
 
-    #left-parameters {
+    #schmerzbereich {
       position: absolute;
       left: 5%;
       top: 5%;
-      width: 20%;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5em;
     }
 
-    #right-parameters {
+    #form {
+      position: absolute;
+      left: 5%;
+      top: 42%;
+    }
+
+    #materialitaet {
+      position: absolute;
+      left: 5%;
+      top: 70%;
+    }
+
+    #farbe {
       position: absolute;
       right: 5%;
       top: 5%;
-      width: 20%;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5em;
+    }
+
+    #animation {
+      position: absolute;
+      right: 5%;
+      top: 41%;
     }
 
     #background {
@@ -208,12 +202,12 @@
       </div>
     </div>
   </div>
-  <div id="left-parameters">
-    <div id="schmerzbereich" class="box">
-      <div class="row">
-        <h3>SCHMERZBEREICH</h3>
-        <h3>X</h3>
-      </div>
+  <div id="schmerzbereich" class="box">
+    <div class="row">
+      <h3>SCHMERZBEREICH</h3>
+      <h3 id="toggle-schmerzbereich">X</h3>
+    </div>
+    <div id="toggle-schmerzbereich-parameters">
       <div class="row">
         <label for="radius1">Punkt A</label>
         <input type="range" id="radius1" name="Radius" min="1" max="70" value="20" step="1">
@@ -223,8 +217,8 @@
         <label for="radius2">Punkt B</label>
         <input type="range" id="radius2" name="Radius" min="1" max="70" value="20" step="1">
         <div style="flex: 1; display: grid;
-        justify-items: center;
-        align-items: center;">
+          justify-items: center;
+          align-items: center;">
           <div
             style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
           </div>
@@ -234,8 +228,8 @@
         <label for="radius3">Punkt C</label>
         <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
         <div style="flex: 1; display: grid;
-        justify-items: center;
-        align-items: center;">
+          justify-items: center;
+          align-items: center;">
           <div
             style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
           </div>
@@ -250,11 +244,13 @@
         <input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005">
       </div>
     </div>
-    <div id="form" class="box">
-      <div class="row">
-        <h3>FORM</h3>
-        <h3>X</h3>
-      </div>
+  </div>
+  <div id="form" class="box">
+    <div class="row">
+      <h3>FORM</h3>
+      <h3 id="toggle-form">X</h3>
+    </div>
+    <div id="toggle-form-parameters">
       <div class="row">
         <label for="roundness">Rund/Zackig</label>
         <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
@@ -268,11 +264,13 @@
         <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1">
       </div>
     </div>
-    <div id="materialitaet" class="box">
-      <div class="row">
-        <h3>MATERIALITÄT</h3>
-        <h3>X</h3>
-      </div>
+  </div>
+  <div id="materialitaet" class="box">
+    <div class="row">
+      <h3>MATERIALITÄT</h3>
+      <h3 id="toggle-materialitaet">X</h3>
+    </div>
+    <div id="toggle-materialitaet-parameters">
       <div class="row">
         <label for="alphaRatio">Schärfe</label>
         <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
@@ -283,13 +281,14 @@
       </div>
     </div>
   </div>
-  <div id="right-parameters">
-    <!-- innere farbe-->
-    <div id="farbe" class="box">
-      <div class="row">
-        <h3>FARBE</h3>
-        <h3>X</h3>
-      </div>
+  </div>
+  <!-- innere farbe-->
+  <div id="farbe" class="box">
+    <div class="row">
+      <h3>FARBE</h3>
+      <h3 id="toggle-farbe">X</h3>
+    </div>
+    <div id="toggle-farbe-parameters">
       <form class="row custom-picker">
         <label style="justify-content: left;">Farbe</label>
         <div style="flex: 3; display: flex;">
@@ -346,8 +345,13 @@
         <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
       </div>
     </div>
-    <div id="animation" class="box">
+  </div>
+  <div id="animation" class="box">
+    <div class="row">
       <h3>ANIMATION</h3>
+      <h3 id="toggle-animation">X</h3>
+    </div>
+    <div id="toggle-animation-parameters">
       <form class="row">
         <legend>Parameter</legend>
         <div>
@@ -370,25 +374,25 @@
         <label>
           <input type="radio" id="off" value="off" name="animation-curve" checked>
           <div
-            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Aus.png); background-size: contain;">
+            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Aus.png); background-size: contain;">
           </div>
         </label>
         <label>
           <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
           <div
-            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Abbauend.png); background-size: contain;">
+            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Abbauend.png); background-size: contain;">
           </div>
         </label>
         <label>
           <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
           <div
-            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Aufbauend.png); background-size: contain;">
+            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Aufbauend.png); background-size: contain;">
           </div>
         </label>
         <label>
           <input type="radio" id="soft" value="soft" name="animation-curve">
           <div
-            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Gleichmäßig.png); background-size: contain;">
+            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Gleichmäßig.png); background-size: contain;">
           </div>
         </label>
       </div>
@@ -407,9 +411,56 @@
       <legend>Animationsrichtung:</legend>
       <div style="padding-top: 140px;"></div>
     </div>
-    <div id="joyDiv" style="position: fixed; right: 10%; bottom: 13%; width:120px;height:120px;margin:20px;"></div>
+    <div id="joyDiv" style="position: fixed; right: 10%; bottom: 8%; width:120px;height:120px;margin:20px;"></div>
   </div>
 </body>
+<script>
+  const sections = [
+    {
+      toggleId: "toggle-schmerzbereich",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-form",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-materialitaet",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-farbe",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-animation",
+      visible: true,
+    }
+  ]
+
+  for (const section of sections) {
+    const toggleElement = document.getElementById(section.toggleId)
+    toggleElement.addEventListener("click", function (e) {
+      section.visible = !section.visible
+      const parameters = document.getElementById(section.toggleId + "-parameters")
+      if (section.visible) {
+        this.innerText = "X"
+        parameters.style.display = "block"
+
+        if (section.toggleId === "toggle-animation") {
+          document.getElementById("joyDiv").style.display = "block"
+        }
+      } else {
+        this.innerText = "+"
+        parameters.style.display = "none"
+        if (section.toggleId === "toggle-animation") {
+          document.getElementById("joyDiv").style.display = "none"
+        }
+      }
+    })
+  }
+
+</script>
 <script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
 <script src="index.js"></script>
 

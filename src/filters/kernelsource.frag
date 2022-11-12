@@ -1,5 +1,5 @@
 
-#define POINTS_MAX_LEN 200
+#define POINTS_MAX_LEN 125
 
 layout(std140) uniform data_ubo {
   vec4 points[POINTS_MAX_LEN];
