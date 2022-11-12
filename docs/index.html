@@ -21,10 +21,6 @@
       margin: 18px;
     }
 
-    div {
-      padding-bottom: 4px;
-    }
-
     #schmerzbereich {
       top: 5%;
       left: 5%;
@@ -51,33 +47,34 @@
     }
 
     .box {
-      background-color: white;
+      background-color: rgb(249, 249, 249);
       box-shadow: 0.4px 0.4px 5px grey;
-      padding: 8px;
+      padding: 8px 16px 28px 16px;
     }
 
     h3 {
-      color: rgb(211, 76, 76);
+      color: #f05959;
+      font-size: 1.1em;
     }
 
     #left-parameters {
       position: absolute;
       left: 5%;
       top: 5%;
-      max-width: 20%;
+      width: 20%;
       display: flex;
       flex-direction: column;
-      gap: 1em;
+      gap: 1.5em;
     }
 
     #right-parameters {
       position: absolute;
       right: 5%;
       top: 5%;
-      max-width: 20%;
+      width: 20%;
       display: flex;
       flex-direction: column;
-      gap: 1em;
+      gap: 1.5em;
     }
 
     #background {
@@ -108,6 +105,98 @@
       align-items: center;
       justify-items: center;
     }
+
+    /* custom sliders: */
+    input[type=range] {
+      -webkit-appearance: none;
+      margin: 18px 0;
+      flex: 3;
+    }
+
+    input[type=range]:focus {
+      outline: none;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 6px;
+      cursor: pointer;
+      background: #adadad;
+      border-radius: 5px;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #616161;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -9.5px;
+    }
+
+    input[type=range]::-moz-range-track {
+      height: 6px;
+      cursor: pointer;
+      background: #adadad;
+      border-radius: 5px;
+    }
+
+    input[type=range]::-moz-range-thumb {
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #616161;
+      cursor: pointer;
+      margin-top: -9.5px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 0.5rem;
+    }
+
+    label {
+      white-space: nowrap;
+      margin-right: 8px;
+      flex: 1
+    }
+
+    .divider {
+      margin: 12px 0;
+      width: 100%;
+      border-top: 1px solid #bbb;
+    }
+
+    /* custom color picker */
+    /* HIDE RADIO */
+    .custom-picker [type=radio] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* IMAGE STYLES */
+    .custom-picker [type=radio]+div {
+      cursor: pointer;
+    }
+
+    /* CHECKED STYLES */
+    .custom-picker [type=radio]:checked+div {
+      outline: 2px solid #616161;
+    }
+
+    .inverted-selection [type=radio]:checked+div {
+      background-color: #cfcfcf;
+    }
+
+    .custom-picker label {
+      display: grid;
+      justify-content: center;
+      align-items: center;
+    }
   </style>
 </head>
 
@@ -121,93 +210,147 @@
   </div>
   <div id="left-parameters">
     <div id="schmerzbereich" class="box">
-      <h3>SCHMERZBEREICH</h3>
-      <div>
+      <div class="row">
+        <h3>SCHMERZBEREICH</h3>
+        <h3>X</h3>
+      </div>
+      <div class="row">
+        <label for="radius1">Punkt A</label>
         <input type="range" id="radius1" name="Radius" min="1" max="70" value="20" step="1">
-        <label for="radius1">Größe Punkt 1</label>
+        <div style="flex: 1; text-align: center;"></div>
       </div>
-      <div>
+      <div class="row">
+        <label for="radius2">Punkt B</label>
         <input type="range" id="radius2" name="Radius" min="1" max="70" value="20" step="1">
-        <label for="radius2">Größe Punkt 2</label>
+        <div style="flex: 1; display: grid;
+        justify-items: center;
+        align-items: center;">
+          <div
+            style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
+          </div>
+        </div>
       </div>
-      <div>
+      <div class="row">
+        <label for="radius3">Punkt C</label>
         <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
-        <label for="radius3">Größe Punkt 3</label>
+        <div style="flex: 1; display: grid;
+        justify-items: center;
+        align-items: center;">
+          <div
+            style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
+          </div>
+        </div>
       </div>
-      <!-- geschlossenheut-->
-      <div><input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005">
+      <div class="row">
+        <div class="divider"></div>
+      </div>
+      <!-- geschlossenheit-->
+      <div class="row">
         <label for="closeness">Gravitation</label>
+        <input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005">
       </div>
     </div>
     <div id="form" class="box">
-      <h3>FORM</h3>
-      <legend>Zacken:</legend>
-      <div>
-        <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
+      <div class="row">
+        <h3>FORM</h3>
+        <h3>X</h3>
+      </div>
+      <div class="row">
         <label for="roundness">Rund/Zackig</label>
+        <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
       </div>
-      <div>
+      <div class="row">
+        <label for="outerOffsetRatio">Strahlen</label>
         <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05">
-        <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
       </div>
-      <div>
+      <div class="row">
+        <label for="wings">Feinheit</label>
         <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1">
-        <label for="wings">Anzahl Zacken</label>
       </div>
     </div>
     <div id="materialitaet" class="box">
-      <h3>MATERIALITÄT</h3>
-      <div>
-        <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
-        <label for="alphaRatio">Schärfe</label>
+      <div class="row">
+        <h3>MATERIALITÄT</h3>
+        <h3>X</h3>
       </div>
-      <div>
-        <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01">
+      <div class="row">
+        <label for="alphaRatio">Schärfe</label>
+        <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
+      </div>
+      <div class="row">
         <label for="dissolve">Auflösung</label>
+        <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01">
       </div>
     </div>
   </div>
   <div id="right-parameters">
     <!-- innere farbe-->
     <div id="farbe" class="box">
-      <h3>FARBE</h3>
-      <form>
-        <legend>Farbe:</legend>
-        <div>
-          <input type="radio" id="yellowInner" value="yellow" name="innerColor">
-          <label for="yellowInner">Gelbtöne</label>
-          <input type="radio" id="redInner" value="red" name="innerColor" checked>
-          <label for="redInner">Rottöne</label>
-          <input type="radio" id="blueInner" value="blue" name="innerColor">
-          <label for="innerColorInner">Blautöne</label>
+      <div class="row">
+        <h3>FARBE</h3>
+        <h3>X</h3>
+      </div>
+      <form class="row custom-picker">
+        <label style="justify-content: left;">Farbe</label>
+        <div style="flex: 3; display: flex;">
+          <label>
+            <input type="radio" id="redInner" value="red" name="innerColor" checked>
+            <div
+              style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 27, 27); border: 2px solid white">
+            </div>
+          </label>
+          <label>
+            <input type="radio" id="blueInner" value="blue" name="innerColor">
+            <div
+              style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(13, 36, 239); border: 2px solid white">
+            </div>
+          </label>
+          <label>
+            <input type="radio" id="yellowInner" value="yellow" name="innerColor">
+            <div
+              style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 187, 27); border: 2px solid white">
+            </div>
+          </label>
         </div>
       </form>
-      <div><input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01">
-        <label for="lightness">Ligthness</label>
+      <div class="row">
+        <label for="lightness">Helligkeit</label>
+        <input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01">
+      </div>
+      <div class="row">
+        <div class="divider"></div>
       </div>
       <!-- äußere farbe-->
-      <form>
-        <legend>Farbverlauf zu:</legend>
-        <div>
-          <input type="radio" id="yellow" value="yellow" name="outerColor">
-          <label for="yellow">Gelb</label>
-          <input type="radio" id="orange" value="orange" name="outerColor">
-          <label for="orange">Orange</label>
-          <input type="radio" id="transparency" value="transparency" name="outerColor" checked>
-          <label for="transparency">Transparenz (einfarbig)</label>
+      <form class="row custom-picker">
+        <legend>Verlauf zu</legend>
+        <div style="flex: 3; display: flex;">
+          <label>
+            <input type="radio" id="yellow" value="yellow" name="outerColor">
+            <div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 187, 27)">
+            </div>
+          </label>
+          <label>
+            <input type="radio" id="orange" value="orange" name="outerColor">
+            <div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 142, 27)">
+            </div>
+          </label>
+          <label>
+            <input type="radio" id="transparency" value="transparency" name="outerColor" checked>
+            <div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(196, 196, 196)">
+            </div>
+          </label>
         </div>
       </form>
-      <div>
+      <div class="row">
+        <label for="colorShift">Verlauf</label>
         <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
-        <label for="colorShift">Farbverlauf</label>
       </div>
     </div>
     <div id="animation" class="box">
       <h3>ANIMATION</h3>
-      <form>
-        <legend>Animation:</legend>
+      <form class="row">
+        <legend>Parameter</legend>
         <div>
-          <legend>Parameter:</legend>
           <input type="radio" id="radius" value="radius" name="animation-parameter" checked>
           <label for="radius">Größe</label>
           <input type="radio" id="dissolve" value="dissolve" name="animation-parameter">
@@ -221,36 +364,50 @@
           <input type="radio" id="roundness" value="roundness" name="animation-parameter">
           <label for="roundness">Rund/Zackig</label>
         </div>
-        <div>
-          <legend>Verhalten:</legend>
-          <input type="radio" id="off" value="off" name="animation-curve" checked>
-          <label for="off">Aus</label>
-          <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
-          <label for="linear-out">pulsierend aufbauend</label>
-          <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
-          <label for="linear-in">pulsierend abbauend</label>
-          <input type="radio" id="soft" value="soft" name="animation-curve">
-          <label for="soft">gleichmäßig pulsierend</label>
-        </div>
-        <div>
-          <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01"
-            list="frequencies">
-          <label for="frequencyHz">Frequenz</label>
-          <datalist id="frequencies">
-            <option value="0.1" label="0 Hz"></option>
-            <option value="1.0" label="1 Hz"></option>
-            <option value="10.0" label="10 Hz"></option>
-          </datalist>
-        </div>
-        <div>
-          <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01" list="amplitude">
-          <label for="amplitude">Amplitude</label>
-        </div>
-        <legend>Animationsrichtung:</legend>
-        <div style="padding-top: 180px;"></div>
       </form>
+      <div class="row custom-picker inverted-selection">
+        <legend>Animation</legend>
+        <label>
+          <input type="radio" id="off" value="off" name="animation-curve" checked>
+          <div
+            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Aus.png); background-size: contain;">
+          </div>
+        </label>
+        <label>
+          <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
+          <div
+            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Abbauend.png); background-size: contain;">
+          </div>
+        </label>
+        <label>
+          <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
+          <div
+            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Aufbauend.png); background-size: contain;">
+          </div>
+        </label>
+        <label>
+          <input type="radio" id="soft" value="soft" name="animation-curve">
+          <div
+            style="height: 26px; width: 26px; border-radius: 50%; background-image: url(/assets/icons/Gleichmäßig.png); background-size: contain;">
+          </div>
+        </label>
+      </div>
+      <div class="row">
+        <div class="divider"></div>
+      </div>
+      <div class="row">
+        <label for="frequencyHz">Frequenz</label>
+        <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01"
+          list="frequencies">
+      </div>
+      <div class="row">
+        <label>Amplitude</label>
+        <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01">
+      </div>
+      <legend>Animationsrichtung:</legend>
+      <div style="padding-top: 140px;"></div>
     </div>
-    <div id="joyDiv" style="position: fixed; right: 8%; bottom: 10%; width:100px;height:100px;margin:20px;"></div>
+    <div id="joyDiv" style="position: fixed; right: 10%; bottom: 13%; width:120px;height:120px;margin:20px;"></div>
   </div>
 </body>
 <script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
