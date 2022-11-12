@@ -50,12 +50,20 @@ settings.PRECISION_VERTEX = PRECISION.MEDIUM;
 settings.TARGET_FPMS = 1 / (30 * 1000);
 settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
+const canvas: HTMLElement | null = document.getElementById("circleContentContainer");
+if (!canvas) throw new Error("no canvas!");
+const canvasWidth = canvas.clientWidth * DOWNSCALE_FACTOR;
+const canvasHeight = canvas.clientHeight * DOWNSCALE_FACTOR;
+
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
   backgroundColor: 0xffffff,
   antialias: false,
   useContextAlpha: false,
+  autoDensity: true,
+  width: canvasWidth,
+  height: canvasHeight,
 });
 
 const ticker = Ticker.system;
@@ -68,8 +76,8 @@ Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
 const assetsPromise = Assets.loadBundle("body");
 
 const joystick = new JoyStick("joyDiv", {
-  internalFillColor: "rgba(255, 0, 0, 1)",
-  externalStrokeColor: "rgba(0, 0, 255, 1)",
+  internalFillColor: "grey",
+  externalStrokeColor: "grey",
   autoReturnToCenter: false,
 });
 
@@ -198,19 +206,17 @@ const init = async (): Promise<void> => {
   ]);
   clipper = clipperResolved;
 
-  const canvasWidth = (document.getElementById("animations-canvas")?.clientWidth ?? 0) * DOWNSCALE_FACTOR;
-  const canvasHeight = (document.getElementById("animations-canvas")?.clientHeight ?? 0) * DOWNSCALE_FACTOR;
-  renderer.resize(canvasWidth, canvasHeight);
-
   // add bg image
   const backgroundImage = new Sprite(assetsResolved.headLeft);
-  const scaleToFitRatio = Math.min(
-    (renderer.width * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.width,
-    (renderer.height * DOWNSCALE_FACTOR) / RESOLUTION / backgroundImage.height
-  );
-  backgroundImage.scale.x = backgroundImage.scale.y = scaleToFitRatio;
+
+  const xToFitRatio = canvasWidth / backgroundImage.width;
+  const yToFitRatio = canvasHeight / backgroundImage.height;
+  const scaleToContainRatio = Math.min(xToFitRatio, yToFitRatio);
+  backgroundImage.scale.x = backgroundImage.scale.y = scaleToContainRatio;
+
   backgroundImage.interactive = false;
   backgroundImage.interactiveChildren = false;
+
   scene.addChild(backgroundImage);
 
   ticker.add(animate);

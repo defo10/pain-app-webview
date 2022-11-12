@@ -12,11 +12,8 @@
       font-size: small;
     }
 
-    #animations-canvas {
-      height: 50vh;
-      position: sticky;
-      max-width: 100vw;
-      top: 0;
+    body {
+      background-color: rgb(243, 243, 243);
     }
 
     #parameters {
@@ -27,125 +24,233 @@
     div {
       padding-bottom: 4px;
     }
+
+    #schmerzbereich {
+      top: 5%;
+      left: 5%;
+    }
+
+    #farbe {
+      right: 5%;
+      top: 5%
+    }
+
+    #materialitaet {
+      left: 5%;
+      bottom: 20%;
+    }
+
+    #form {
+      left: 5%;
+      top: 40%;
+    }
+
+    #animation {
+      right: 5%;
+      top: 30%;
+    }
+
+    .box {
+      background-color: white;
+      box-shadow: 0.4px 0.4px 5px grey;
+      padding: 8px;
+    }
+
+    h3 {
+      color: rgb(211, 76, 76);
+    }
+
+    #left-parameters {
+      position: absolute;
+      left: 5%;
+      top: 5%;
+      max-width: 20%;
+      display: flex;
+      flex-direction: column;
+      gap: 1em;
+    }
+
+    #right-parameters {
+      position: absolute;
+      right: 5%;
+      top: 5%;
+      max-width: 20%;
+      display: flex;
+      flex-direction: column;
+      gap: 1em;
+    }
+
+    #background {
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      position: fixed;
+      display: grid;
+      justify-content: center;
+      align-content: center;
+    }
+
+    #circle {
+      background: white;
+      width: 70vw;
+      height: 70vw;
+      border-radius: 50%;
+    }
+
+    #circleContentContainer {
+      margin: 15% 15% 15% 15%;
+      height: 70%;
+      width: 70%;
+      display: grid;
+      justify-content: center;
+      align-content: center;
+      align-items: center;
+      justify-items: center;
+    }
   </style>
 </head>
 
 <body>
-  <canvas id="animations-canvas"></canvas>
-  <div id="parameters">
-    <div>
-      <input type="range" id="radius1" name="Radius" min="1" max="70" value="20" step="1">
-      <label for="radius1">Größe Punkt 1</label>
-    </div>
-    <div>
-      <input type="range" id="radius2" name="Radius" min="1" max="70" value="20" step="1">
-      <label for="radius2">Größe Punkt 2</label>
-    </div>
-    <div>
-      <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
-      <label for="radius3">Größe Punkt 3</label>
-    </div>
-    <!-- geschlossenheut-->
-    <div><input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005">
-      <label for="closeness">Geschlossenheit</label>
-    </div>
-    <!-- innere farbe-->
-    <form>
-      <legend>Farbe:</legend>
-      <div>
-        <input type="radio" id="yellowInner" value="yellow" name="innerColor">
-        <label for="yellowInner">Gelbtöne</label>
-        <input type="radio" id="redInner" value="red" name="innerColor" checked>
-        <label for="redInner">Rottöne</label>
-        <input type="radio" id="blueInner" value="blue" name="innerColor">
-        <label for="innerColorInner">Blautöne</label>
+  <div id="background">
+    <div id="circle">
+      <div id="circleContentContainer">
+        <canvas id="animations-canvas"></canvas>
       </div>
-    </form>
-    <div><input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01">
-      <label for="lightness">Ligthness</label>
     </div>
-    <!-- äußere farbe-->
-    <form>
-      <legend>Farbverlauf zu:</legend>
+  </div>
+  <div id="left-parameters">
+    <div id="schmerzbereich" class="box">
+      <h3>SCHMERZBEREICH</h3>
       <div>
-        <input type="radio" id="yellow" value="yellow" name="outerColor">
-        <label for="yellow">Gelb</label>
-        <input type="radio" id="orange" value="orange" name="outerColor">
-        <label for="orange">Orange</label>
-        <input type="radio" id="transparency" value="transparency" name="outerColor" checked>
-        <label for="transparency">Transparenz (einfarbig)</label>
+        <input type="range" id="radius1" name="Radius" min="1" max="70" value="20" step="1">
+        <label for="radius1">Größe Punkt 1</label>
       </div>
-    </form>
-    <div>
-      <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
-      <label for="colorShift">Farbverlauf</label>
-    </div>
-    <div>
-      <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
-      <label for="alphaRatio">Transparenz</label>
-    </div>
-    <div>
-      <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01">
-      <label for="dissolve">Menge</label>
-    </div>
-    <legend>Zacken:</legend>
-    <div>
-      <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
-      <label for="roundness">Rund/Zackig</label>
-    </div>
-    <div>
-      <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05">
-      <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
-    </div>
-    <div>
-      <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1">
-      <label for="wings">Anzahl Zacken</label>
-    </div>
-    <form>
-      <legend>Animation:</legend>
       <div>
-        <legend>Parameter:</legend>
-        <input type="radio" id="radius" value="radius" name="animation-parameter" checked>
-        <label for="radius">Größe</label>
-        <input type="radio" id="dissolve" value="dissolve" name="animation-parameter">
-        <label for="dissolve">Menge</label>
-        <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter">
-        <label for="innerColorStart">Farbverlauf</label>
-        <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter">
-        <label for="alphaFallOutEnd">Transparenz</label>
-        <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter">
-        <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
-        <input type="radio" id="roundness" value="roundness" name="animation-parameter">
+        <input type="range" id="radius2" name="Radius" min="1" max="70" value="20" step="1">
+        <label for="radius2">Größe Punkt 2</label>
+      </div>
+      <div>
+        <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
+        <label for="radius3">Größe Punkt 3</label>
+      </div>
+      <!-- geschlossenheut-->
+      <div><input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005">
+        <label for="closeness">Gravitation</label>
+      </div>
+    </div>
+    <div id="form" class="box">
+      <h3>FORM</h3>
+      <legend>Zacken:</legend>
+      <div>
+        <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
         <label for="roundness">Rund/Zackig</label>
       </div>
       <div>
-        <legend>Verhalten:</legend>
-        <input type="radio" id="off" value="off" name="animation-curve" checked>
-        <label for="off">Aus</label>
-        <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
-        <label for="linear-out">pulsierend aufbauend</label>
-        <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
-        <label for="linear-in">pulsierend abbauend</label>
-        <input type="radio" id="soft" value="soft" name="animation-curve">
-        <label for="soft">gleichmäßig pulsierend</label>
+        <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05">
+        <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
       </div>
       <div>
-        <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01"
-          list="frequencies">
-        <label for="frequencyHz">Frequenz</label>
-        <datalist id="frequencies">
-          <option value="0.1" label="0 Hz"></option>
-          <option value="1.0" label="1 Hz"></option>
-          <option value="10.0" label="10 Hz"></option>
-        </datalist>
+        <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1">
+        <label for="wings">Anzahl Zacken</label>
+      </div>
+    </div>
+    <div id="materialitaet" class="box">
+      <h3>MATERIALITÄT</h3>
+      <div>
+        <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
+        <label for="alphaRatio">Schärfe</label>
       </div>
       <div>
-        <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01" list="amplitude">
-        <label for="amplitude">Amplitude</label>
+        <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01">
+        <label for="dissolve">Auflösung</label>
       </div>
-    </form>
-    <legend>Animationsrichtung:</legend>
-    <div id="joyDiv" style="width:100px;height:100px;margin:20px;"></div>
+    </div>
+  </div>
+  <div id="right-parameters">
+    <!-- innere farbe-->
+    <div id="farbe" class="box">
+      <h3>FARBE</h3>
+      <form>
+        <legend>Farbe:</legend>
+        <div>
+          <input type="radio" id="yellowInner" value="yellow" name="innerColor">
+          <label for="yellowInner">Gelbtöne</label>
+          <input type="radio" id="redInner" value="red" name="innerColor" checked>
+          <label for="redInner">Rottöne</label>
+          <input type="radio" id="blueInner" value="blue" name="innerColor">
+          <label for="innerColorInner">Blautöne</label>
+        </div>
+      </form>
+      <div><input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01">
+        <label for="lightness">Ligthness</label>
+      </div>
+      <!-- äußere farbe-->
+      <form>
+        <legend>Farbverlauf zu:</legend>
+        <div>
+          <input type="radio" id="yellow" value="yellow" name="outerColor">
+          <label for="yellow">Gelb</label>
+          <input type="radio" id="orange" value="orange" name="outerColor">
+          <label for="orange">Orange</label>
+          <input type="radio" id="transparency" value="transparency" name="outerColor" checked>
+          <label for="transparency">Transparenz (einfarbig)</label>
+        </div>
+      </form>
+      <div>
+        <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
+        <label for="colorShift">Farbverlauf</label>
+      </div>
+    </div>
+    <div id="animation" class="box">
+      <h3>ANIMATION</h3>
+      <form>
+        <legend>Animation:</legend>
+        <div>
+          <legend>Parameter:</legend>
+          <input type="radio" id="radius" value="radius" name="animation-parameter" checked>
+          <label for="radius">Größe</label>
+          <input type="radio" id="dissolve" value="dissolve" name="animation-parameter">
+          <label for="dissolve">Menge</label>
+          <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter">
+          <label for="innerColorStart">Farbverlauf</label>
+          <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter">
+          <label for="alphaFallOutEnd">Transparenz</label>
+          <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter">
+          <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
+          <input type="radio" id="roundness" value="roundness" name="animation-parameter">
+          <label for="roundness">Rund/Zackig</label>
+        </div>
+        <div>
+          <legend>Verhalten:</legend>
+          <input type="radio" id="off" value="off" name="animation-curve" checked>
+          <label for="off">Aus</label>
+          <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
+          <label for="linear-out">pulsierend aufbauend</label>
+          <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
+          <label for="linear-in">pulsierend abbauend</label>
+          <input type="radio" id="soft" value="soft" name="animation-curve">
+          <label for="soft">gleichmäßig pulsierend</label>
+        </div>
+        <div>
+          <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01"
+            list="frequencies">
+          <label for="frequencyHz">Frequenz</label>
+          <datalist id="frequencies">
+            <option value="0.1" label="0 Hz"></option>
+            <option value="1.0" label="1 Hz"></option>
+            <option value="10.0" label="10 Hz"></option>
+          </datalist>
+        </div>
+        <div>
+          <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01" list="amplitude">
+          <label for="amplitude">Amplitude</label>
+        </div>
+        <legend>Animationsrichtung:</legend>
+        <div style="padding-top: 180px;"></div>
+      </form>
+    </div>
+    <div id="joyDiv" style="position: fixed; right: 8%; bottom: 10%; width:100px;height:100px;margin:20px;"></div>
   </div>
 </body>
 <script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
