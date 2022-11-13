@@ -48,7 +48,7 @@
         border-radius: 50%;
         height: 8em;
         width: 8em;
-        background-image: url(/assets/icons/Körperregion.png);
+        background-image: url(./assets/icons/Koerperregion.png);
         background-size: contain;
       }
     `],r([(0,n.state)()],u.prototype,"selection",void 0),r([(0,n.state)()],u.prototype,"assetLocation",void 0),r([(0,n.state)()],u.prototype,"isWindowOpen",void 0),u=r([(0,n.customElement)("area-picker")],u),e.AreaPicker=u},1293:function(t,e,A){"use strict";var r=this&&this.__decorate||function(t,e,A,r){var i,n=arguments.length,o=n<3?e:null===r?r=Object.getOwnPropertyDescriptor(e,A):r;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)o=Reflect.decorate(t,e,A,r);else for(var a=t.length-1;a>=0;a--)(i=t[a])&&(o=(n<3?i(o):n>3?i(e,A,o):i(e,A))||o);return n>3&&o&&Object.defineProperty(e,A,o),o},i=this&&this.__importDefault||function(t){return t&&t.__esModule?t:{default:t}};Object.defineProperty(e,"__esModule",{value:!0}),e.PainShapes=void 0;const n=A(7062),o=A(5595),a=A(5827),s=i(A(6486)),u=A(7921);let h=class extends n.LitElement{constructor(){super(...arguments),this.items=[{id:1,radius:30},{id:2,radius:30},{id:3,radius:30}]}render(){return n.html`
@@ -139,7 +139,7 @@
       .trash-button {
         height: 20px;
         width: 20px;
-        background-image: url(/assets/icons/Bereich-Trashcan.png);
+        background-image: url(./assets/icons/Bereich-Trashcan.png);
         background-size: contain;
         background-repeat: no-repeat;
         cursor: pointer;

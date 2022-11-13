@@ -178,7 +178,7 @@ export class AreaPicker extends LitElement {
         border-radius: 50%;
         height: 8em;
         width: 8em;
-        background-image: url(/assets/icons/Körperregion.png);
+        background-image: url(./assets/icons/Koerperregion.png);
         background-size: contain;
       }
     `,

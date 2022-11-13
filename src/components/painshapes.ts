@@ -71,7 +71,7 @@ export class PainShapes extends LitElement {
       .trash-button {
         height: 20px;
         width: 20px;
-        background-image: url(/assets/icons/Bereich-Trashcan.png);
+        background-image: url(./assets/icons/Bereich-Trashcan.png);
         background-size: contain;
         background-repeat: no-repeat;
         cursor: pointer;
