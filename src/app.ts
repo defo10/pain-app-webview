@@ -98,7 +98,7 @@ Assets.addBundle("body", {
   partsUpperFront: "./assets/parts/upper/front.jpg",
   partsUpperLeft: "./assets/parts/upper/left.jpg",
   partsUpperRight: "./assets/parts/upper/right.jpg",
-  leer: "./assets/leer.jpg",
+  leer: "./assets/Leer.jpg",
 });
 const assetsPromise = Assets.loadBundle("body");
 
