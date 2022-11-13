@@ -191,22 +191,6 @@
       justify-content: center;
       align-items: center;
     }
-
-    /* trash button */
-    .trash-button-container {
-      flex: 1;
-      display: grid;
-      justify-items: center;
-      align-items: center;
-    }
-
-    .trash-button {
-      height: 20px;
-      width: 20px;
-      background-image: url(/assets/icons/Bereich-Trashcan.png);
-      background-size: contain;
-      background-repeat: no-repeat;
-    }
   </style>
 </head>
 
@@ -224,29 +208,7 @@
       <h3 id="toggle-schmerzbereich">X</h3>
     </div>
     <div id="toggle-schmerzbereich-parameters">
-      <div class="row">
-        <label for="radius1">Punkt A</label>
-        <input type="range" id="radius1" name="Radius" min="1" max="70" value="20" step="1">
-        <div style="flex: 1; text-align: center;"></div>
-      </div>
-      <div class="row">
-        <label for="radius2">Punkt B</label>
-        <input type="range" id="radius2" name="Radius" min="1" max="70" value="20" step="1">
-        <div style="flex: 1; display: grid;
-          justify-items: center;
-          align-items: center;">
-          <div
-            style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
-          </div>
-        </div>
-      </div>
-      <div class="row">
-        <label for="radius3">Punkt C</label>
-        <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
-        <div style="trash-button-container">
-          <div style="trash-button"></div>
-        </div>
-      </div>
+      <pain-shapes></pain-shapes>
       <div class="row">
         <div class="divider"></div>
       </div>
@@ -425,7 +387,6 @@
     </div>
     <div id="joyDiv" style="position: fixed; right: 10%; bottom: 8%; width:120px;height:120px;margin:20px;"></div>
   </div>
-  <my-element></my-element>
 </body>
 <script>
   const sections = [
@@ -474,6 +435,5 @@
   }
 
 </script>
-<script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
 
 </html>

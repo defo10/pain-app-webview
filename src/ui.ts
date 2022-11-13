@@ -1,5 +1,5 @@
 export const valueFromSlider = (id: string): number =>
-  parseFloat((document.getElementById(id) as HTMLInputElement).value);
+  parseFloat((document.getElementById(id) as HTMLInputElement)?.value ?? "10");
 
 /** returns HSL! */
 export const outerColorPicker = (colorCode: string): [number, number, number] | null => {

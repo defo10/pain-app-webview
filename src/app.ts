@@ -37,6 +37,7 @@ import { JoyStick } from "./joy";
 import simplify from "simplify-js";
 import { AnimationBuilder } from "./animation_builder";
 import "./components";
+import { PainShapes } from "./components";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -130,20 +131,29 @@ const motionFnToFlag = (param: string): number => {
 };
 
 const updatedModel = (oldModel?: Model): Model => {
-  let painShapes;
-  if (oldModel) {
-    oldModel.painShapes.forEach((p, i) => {
-      p.radius = valueFromSlider(`radius${i + 1}`);
-      // position is updated automatically by the drag handler
-    });
-    painShapes = oldModel.painShapes;
-  } else {
-    painShapes = [
-      new PainShape(new Point(120, 90), valueFromSlider("radius1")),
-      new PainShape(new Point(170, 120), valueFromSlider("radius2")),
-      new PainShape(new Point(140, 200), valueFromSlider("radius3")),
-    ];
-  }
+  let painShapes = oldModel ? oldModel.painShapes : [];
+  const painShapesElement = document.querySelector("pain-shapes") as PainShapes;
+  const items = painShapesElement.items;
+
+  // we update shapes while maintaining the object identity because the drag handlers are linked to them
+  const newOnes = items.filter(({ id }) => !painShapes.some((ps) => ps.id === id));
+  // remove stale
+  painShapes = painShapes.filter((ps) => items.some(({ id }) => ps.id === id));
+  // add new
+  painShapes = [
+    ...painShapes,
+    ...newOnes.map(
+      ({ id, radius }) => new PainShape(id, new Point(120 + Math.random() * 100, 90 + Math.random() * 100), radius)
+    ),
+  ];
+  // update radii
+  painShapes.forEach((p) => {
+    const newRadius = items.find(({ id }) => id === p.id)?.radius;
+    if (!newRadius) console.log("Radius not set?");
+    p.radius = newRadius ?? 0;
+    // position is updated automatically by the drag handler
+  });
+
   return {
     considerConnectedLowerBound: 0.75,
     gravitationForceVisibleLowerBound: 0.5,
