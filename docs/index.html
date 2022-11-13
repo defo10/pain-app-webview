@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
+<script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
+<script src="index.js"></script>
 
 <head>
   <meta charset="UTF-8">
@@ -191,6 +193,22 @@
       justify-content: center;
       align-items: center;
     }
+
+    /* trash button */
+    .trash-button-container {
+      flex: 1;
+      display: grid;
+      justify-items: center;
+      align-items: center;
+    }
+
+    .trash-button {
+      height: 20px;
+      width: 20px;
+      background-image: url(/assets/icons/Bereich-Trashcan.png);
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
   </style>
 </head>
 
@@ -227,12 +245,8 @@
       <div class="row">
         <label for="radius3">Punkt C</label>
         <input type="range" id="radius3" name="Radius" min="1" max="70" value="20" step="1">
-        <div style="flex: 1; display: grid;
-          justify-items: center;
-          align-items: center;">
-          <div
-            style="height: 20px; width: 20px; background-image: url(/assets/icons/Bereich-Trashcan.png); background-size: contain; background-repeat: no-repeat;">
-          </div>
+        <div style="trash-button-container">
+          <div style="trash-button"></div>
         </div>
       </div>
       <div class="row">
@@ -461,7 +475,5 @@
   }
 
 </script>
-<script src="https://unpkg.com/blink.js/dist/blink.min.js"></script>
-<script src="index.js"></script>
 
 </html>
