@@ -1,0 +1,274 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="X-UA-Compatible" content="ie=edge"><title>Pain App</title><style>html * {
+      font-family: Verdana !important;
+      font-size: small;
+    }
+
+    body {
+      background-color: rgb(243, 243, 243);
+    }
+
+    #parameters {
+      display: none;
+    }
+
+    #animation {
+      right: 5%;
+      top: 30%;
+    }
+
+    .box {
+      background-color: rgb(249, 249, 249);
+      box-shadow: 0.4px 0.4px 5px grey;
+      padding: 16px 16px 16px 16px;
+      width: 20%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2em;
+    }
+
+    h3 {
+      color: #f05959;
+      font-size: 1.1em;
+      margin: 0;
+    }
+
+    #schmerzbereich {
+      position: absolute;
+      left: 5%;
+      top: 5%;
+    }
+
+    #form {
+      position: absolute;
+      left: 5%;
+      top: 42%;
+    }
+
+    #materialitaet {
+      position: absolute;
+      left: 5%;
+      top: 70%;
+    }
+
+    #farbe {
+      position: absolute;
+      right: 5%;
+      top: 5%;
+    }
+
+    #animation {
+      position: absolute;
+      right: 5%;
+      top: 41%;
+    }
+
+    #background {
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      position: fixed;
+      display: grid;
+      justify-content: center;
+      align-content: center;
+    }
+
+    #circle {
+      background: white;
+      width: 70vw;
+      height: 70vw;
+      border-radius: 50%;
+    }
+
+    #circleContentContainer {
+      margin: 15% 15% 15% 15%;
+      height: 70%;
+      width: 70%;
+      display: grid;
+      justify-content: center;
+      align-content: center;
+      align-items: center;
+      justify-items: center;
+    }
+
+    /* custom sliders: */
+    input[type=range] {
+      -webkit-appearance: none;
+      margin: 18px 0;
+      flex: 3;
+    }
+
+    input[type=range]:focus {
+      outline: none;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 6px;
+      cursor: pointer;
+      background: #adadad;
+      border-radius: 5px;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #616161;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -9.5px;
+    }
+
+    input[type=range]::-moz-range-track {
+      height: 6px;
+      cursor: pointer;
+      background: #adadad;
+      border-radius: 5px;
+    }
+
+    input[type=range]::-moz-range-thumb {
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #616161;
+      cursor: pointer;
+      margin-top: -9.5px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 0.5rem;
+    }
+
+    label {
+      white-space: nowrap;
+      margin-right: 8px;
+      flex: 1
+    }
+
+    .divider {
+      margin: 12px 0;
+      width: 100%;
+      border-top: 1px solid #bbb;
+    }
+
+    /* custom color picker */
+    /* HIDE RADIO */
+    .custom-picker [type=radio] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* IMAGE STYLES */
+    .custom-picker [type=radio]+div {
+      cursor: pointer;
+    }
+
+    /* CHECKED STYLES */
+    .custom-picker [type=radio]:checked+div {
+      outline: 2px solid #616161;
+    }
+
+    .animation-radio-button {
+      height: 32px;
+      width: 32px;
+      border-radius: 50%;
+      background-size: contain;
+    }
+
+    #off+div {
+      background-image: url(/assets/icons/aus_clear.png);
+    }
+
+    #off:checked+div {
+      background-image: url(/assets/icons/aus_selected.png);
+    }
+
+    #linear-out+div {
+      background-image: url(/assets/icons/Abbauend_clear.png);
+    }
+
+    #linear-out:checked+div {
+      background-image: url(/assets/icons/Abbauen_selected.png);
+    }
+
+    #linear-in+div {
+      background-image: url(/assets/icons/Aufbauend_clear.png);
+    }
+
+    #linear-in:checked+div {
+      background-image: url(/assets/icons/Aufbauend_selected.png);
+    }
+
+    #soft+div {
+      background-image: url(/assets/icons/Gleichmaessig_clear.png);
+    }
+
+    #soft:checked+div {
+      background-image: url(/assets/icons/gleichmaessig_selected.png);
+    }
+
+    .custom-picker label {
+      display: grid;
+      justify-content: center;
+      align-items: center;
+    }</style><script defer="defer" src="index.js"></script></head><body><div id="background"><div id="circle"><div id="circleContentContainer"><canvas id="animations-canvas"></canvas></div></div></div><div id="schmerzbereich" class="box"><div class="row"><h3>SCHMERZBEREICH</h3><h3 id="toggle-schmerzbereich" style="cursor: pointer;">X</h3></div><div id="toggle-schmerzbereich-parameters" class="parameters"><pain-shapes></pain-shapes><div class="row"><div class="divider"></div></div><div class="row"><label for="closeness">Gravitation</label> <input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005"></div></div></div><div id="form" class="box"><div class="row"><h3>FORM</h3><h3 id="toggle-form" style="cursor: pointer;">X</h3></div><div id="toggle-form-parameters" class="parameters"><div class="row"><label for="roundness">Rund/Zackig</label> <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01"></div><div class="row"><label for="outerOffsetRatio">Strahlen</label> <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05"></div><div class="row"><label for="wings">Feinheit</label> <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1"></div></div></div><div id="materialitaet" class="box"><div class="row"><h3>MATERIALITÄT</h3><h3 id="toggle-materialitaet" style="cursor: pointer;">X</h3></div><div id="toggle-materialitaet-parameters" class="parameters"><div class="row"><label for="alphaRatio">Schärfe</label> <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0.9" step="0.01"></div><div class="row"><label for="dissolve">Auflösung</label> <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01"></div></div></div><div id="farbe" class="box"><div class="row"><h3>FARBE</h3><h3 id="toggle-farbe" style="cursor: pointer;">X</h3></div><div id="toggle-farbe-parameters" class="parameters"><form class="row custom-picker"><label style="justify-content: left;">Farbe</label><div style="flex: 3; display: flex;"><label><input type="radio" id="redInner" value="red" name="innerColor" checked="checked"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 27, 27); border: 2px solid white"></div></label> <label><input type="radio" id="blueInner" value="blue" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(13, 36, 239); border: 2px solid white"></div></label> <label><input type="radio" id="yellowInner" value="yellow" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 187, 27); border: 2px solid white"></div></label></div></form><div class="row"><label for="lightness">Helligkeit</label> <input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01"></div><div class="row"><div class="divider"></div></div><form class="row custom-picker"><legend>Verlauf zu</legend><div style="flex: 3; display: flex;"><label><input type="radio" id="yellow" value="yellow" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 187, 27)"></div></label> <label><input type="radio" id="orange" value="orange" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 142, 27)"></div></label> <label><input type="radio" id="transparency" value="transparency" name="outerColor" checked="checked"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(196, 196, 196)"></div></label></div></form><div class="row"><label for="colorShift">Verlauf</label> <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01"></div></div></div><div id="animation" class="box"><div class="row"><h3>ANIMATION</h3><h3 id="toggle-animation" style="cursor: pointer;">X</h3></div><div id="toggle-animation-parameters" class="parameters"><form class="row"><legend>Parameter</legend><div><input type="radio" id="radius" value="radius" name="animation-parameter" checked="checked"> <label for="radius">Größe</label> <input type="radio" id="dissolve" value="dissolve" name="animation-parameter"> <label for="dissolve">Menge</label> <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter"> <label for="innerColorStart">Farbverlauf</label> <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter"> <label for="alphaFallOutEnd">Transparenz</label> <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter"> <label for="outerOffsetRatio">Konzentriert/Strahlend</label> <input type="radio" id="roundness" value="roundness" name="animation-parameter"> <label for="roundness">Rund/Zackig</label></div></form><div class="row custom-picker"><legend>Animation</legend><label><input type="radio" id="off" value="off" name="animation-curve" checked="checked"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-out" value="linear-out" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-in" value="linear-in" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="soft" value="soft" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label></div><div class="row"><div class="divider"></div></div><div class="row"><label for="frequencyHz">Frequenz</label> <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01" list="frequencies"></div><div class="row"><label>Amplitude</label> <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01"></div><legend>Animationsrichtung:</legend><div style="padding-top: 140px;"></div></div><div id="joyDiv" style="position: fixed; right: 10%; top: 70%; width:120px;height:120px;margin:20px;"></div></div><area-picker></area-picker></body><script>const sections = [
+    {
+      toggleId: "toggle-schmerzbereich",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-form",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-materialitaet",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-farbe",
+      visible: true,
+    },
+    {
+      toggleId: "toggle-animation",
+      visible: true,
+    }
+  ]
+
+  const switchVisibility = (toggleElement, section) => {
+    section.visible = !section.visible
+    const parameters = document.getElementById(section.toggleId + "-parameters")
+    const joyDiv = document.getElementById("joyDiv")
+    if (section.visible) {
+      toggleElement.innerText = "X"
+      parameters.style.display = "block"
+
+      if (section.toggleId === "toggle-animation" && joyDiv) {
+        joyDiv.style.display = "block"
+      }
+    } else {
+      toggleElement.innerText = "+"
+      parameters.style.display = "none"
+      if (section.toggleId === "toggle-animation" && joyDiv) {
+        joyDiv.style.display = "none"
+      }
+    }
+  }
+
+  for (const section of sections) {
+    const toggleElement = document.getElementById(section.toggleId)
+    toggleElement.addEventListener("click", function (_) {
+      switchVisibility(toggleElement, section)
+    })
+  }
+
+  // joystick must be visible so we need to await until after 
+  for (const section of sections) {
+    const clickEvent = new MouseEvent("click")
+    const toggleElement = document.getElementById(section.toggleId)
+    toggleElement.dispatchEvent(clickEvent)
+  }</script></html>
