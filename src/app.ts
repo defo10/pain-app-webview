@@ -36,8 +36,10 @@ import KernelSource from "./filters/kernelsource.frag";
 import { JoyStick } from "./joy";
 import simplify from "simplify-js";
 import { AnimationBuilder } from "./animation_builder";
-import "./components";
-import { PainShapes } from "./components";
+import "./components/painshapes";
+import "./components/areapicker";
+import { PainShapes } from "./components/painshapes";
+import { AreaPicker } from "./components/areapicker";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -68,13 +70,36 @@ const renderer = autoDetectRenderer({
   height: canvasHeight,
 });
 
-const ticker = Ticker.system;
-ticker.maxFPS = 60;
+let ticker: Ticker | undefined;
 // async inits
 const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
-Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
+Assets.addBundle("body", {
+  wholeFront: "./assets/whole/front.jpg",
+  wholeBack: "./assets/whole/back.jpg",
+  wholeLeft: "./assets/whole/left.jpg",
+  wholeRight: "./assets/whole/right.jpg",
+  partsArmsLeft: "./assets/parts/arms/arm-left.jpg",
+  partsArmsRight: "./assets/parts/arms/arm-right.jpg",
+  partsArmsHandLeft: "./assets/parts/arms/hand-left.jpg",
+  partsArmsHandRight: "./assets/parts/arms/hand-right.jpg",
+  partsHeadBack: "./assets/parts/head/head-back.jpg",
+  partsHeadFront: "./assets/parts/head/head-front.jpg",
+  partsHeadLeft: "./assets/parts/head/head-left.jpg",
+  partsHeadRight: "./assets/parts/head/head-right.jpg",
+  partsLegsFront: "./assets/parts/legs/legs-front.jpg",
+  partsLegsBack: "./assets/parts/legs/legs-back.jpg",
+  partsLegsFootLeft: "./assets/parts/legs/foot-left.jpg",
+  partsLegsFootRight: "./assets/parts/legs/foot-right.jpg",
+  partsLowerBack: "./assets/parts/lower/back.jpg",
+  partsLowerFront: "./assets/parts/lower/front.jpg",
+  partsUpperBack: "./assets/parts/upper/back.jpg",
+  partsUpperFront: "./assets/parts/upper/front.jpg",
+  partsUpperLeft: "./assets/parts/upper/left.jpg",
+  partsUpperRight: "./assets/parts/upper/right.jpg",
+  leer: "./assets/leer.jpg",
+});
 const assetsPromise = Assets.loadBundle("body");
 
 let joystick: any | undefined;
@@ -157,7 +182,7 @@ const updatedModel = (oldModel?: Model): Model => {
     closeness: valueFromSlider("closeness"),
     dissolve: valueFromSlider("dissolve"),
     innerColorStart: valueFromSlider("colorShift"),
-    alphaFallOutEnd: valueFromSlider("alphaRatio"),
+    alphaFallOutEnd: 1 - valueFromSlider("alphaRatio"),
     innerColorHSL: innerColorPicker(checkedRadioBtn("innerColor"), valueFromSlider("lightness")),
     outerColorHSL:
       outerColorPicker(checkedRadioBtn("outerColor")) ??
@@ -206,20 +231,13 @@ let staleMeshes: Container;
 let stars: Position[][] = [];
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 
-const init = async (): Promise<void> => {
-  const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { headLeft: Texture }] = await Promise.all([
-    clipperPromise,
-    assetsPromise,
-  ]);
+const init = async (assetLocation: string): Promise<void> => {
+  const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { [key: string]: Texture }] =
+    await Promise.all([clipperPromise, assetsPromise]);
   clipper = clipperResolved;
-  joystick = new JoyStick("joyDiv", {
-    internalFillColor: "grey",
-    externalStrokeColor: "grey",
-    autoReturnToCenter: false,
-  });
 
   // add bg image
-  const backgroundImage = new Sprite(assetsResolved.headLeft);
+  const backgroundImage = new Sprite(assetsResolved[assetLocation]);
 
   const xToFitRatio = canvasWidth / backgroundImage.width;
   const yToFitRatio = canvasHeight / backgroundImage.height;
@@ -229,15 +247,28 @@ const init = async (): Promise<void> => {
   backgroundImage.interactive = false;
   backgroundImage.interactiveChildren = false;
 
+  scene.removeChildren();
   scene.addChild(backgroundImage);
 
+  if (ticker) ticker.destroy();
+  ticker = Ticker.system;
+  ticker.maxFPS = 60;
   ticker.add(animate);
 };
 
 const animate = (time: number): void => {
+  if ((document.getElementById("toggle-animation-parameters") as HTMLElement).style.display !== "none" && !joystick) {
+    joystick = new JoyStick("joyDiv", {
+      internalFillColor: "#616161",
+      internalStrokeColor: "#616161",
+      externalStrokeColor: "#616161",
+      autoReturnToCenter: false,
+    });
+  }
+
   model = updatedModel(model);
 
-  const padding = 100;
+  const padding = (_.maxBy(model.painShapes, (ps) => ps.radius)?.radius ?? 1) * 5 * model.closeness;
   const bb = {
     minX: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.x - ps.radius)?.position.x ?? 0) - padding),
     minY: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.y - ps.radius)?.position.y ?? 0) - padding),
@@ -302,9 +333,13 @@ const animate = (time: number): void => {
       const starsPerPolygon: Position[][] = [];
       for (const polygon of polygonLowRes) {
         const euclidPolygon = new EuclidPolygon(...polygon.map(([x, y]) => new EuclidPoint(x, y)));
-        const positions = new RandomSpaceFilling(euclidPolygon, [2, 5]);
+        const positions = new RandomSpaceFilling(euclidPolygon, [4, 8]);
         const stars = positions.getPositions(0.2);
-        starsPerPolygon.push(stars);
+
+        // 125 is the maximum number of coordinates we can pass to the uniform buffer
+        // for for Webkit/Safari
+        const starsClamped = stars.slice(0, Math.floor(100 / polygonLowRes.length));
+        starsPerPolygon.push(starsClamped);
       }
 
       // save star as global such that is doesnt change during the dissolve
@@ -318,7 +353,7 @@ const animate = (time: number): void => {
     bb,
     model.animationType,
     model.frequencyHz,
-    ticker.lastTime,
+    (ticker as Ticker).lastTime,
     model.amplitude
   );
 
@@ -340,7 +375,7 @@ const animate = (time: number): void => {
   // update animation uniforms for all cases but radius
   shader.uniforms.animationOrigin = Float32Array.from(animationBuilder.origin);
   shader.uniforms.timePerLoop = 1000 / model.frequencyHz;
-  shader.uniforms.timeSinceStart = ticker.lastTime % (1000 / model.frequencyHz);
+  shader.uniforms.timeSinceStart = (ticker as Ticker).lastTime % (1000 / model.frequencyHz);
   shader.uniforms.maxDistanceToOrigin = animationBuilder.maxDistanceToOrigin;
   shader.uniforms.amplitude = model.amplitude;
   shader.uniforms.animationParameterFlag = animationParameterToFlag(model.animationParamter);
@@ -532,4 +567,10 @@ const animate = (time: number): void => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-//init();
+init("leer");
+
+const areaPicker = document.querySelector("area-picker") as AreaPicker;
+areaPicker?.addEventListener("area-chosen", (e) => {
+  const assetLocation = areaPicker.assetLocation as string;
+  init(assetLocation);
+});

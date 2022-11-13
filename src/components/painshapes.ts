@@ -14,6 +14,53 @@ export class PainShapes extends LitElement {
   static styles = [
     globalStyles,
     css`
+      /* custom sliders: */
+      input[type="range"] {
+        -webkit-appearance: none;
+        margin: 18px 0;
+        flex: 3;
+      }
+
+      input[type="range"]:focus {
+        outline: none;
+      }
+
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 6px;
+        cursor: pointer;
+        background: #e4e4e4;
+        border-radius: 5px;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        height: 18px;
+        width: 18px;
+        border-radius: 50%;
+        background: white;
+        outline: solid 3px #969696;
+        cursor: pointer;
+        -webkit-appearance: none;
+        margin-top: -5px;
+      }
+
+      input[type="range"]::-moz-range-track {
+        height: 6px;
+        cursor: pointer;
+        background: #e4e4e4;
+        border-radius: 5px;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        height: 18px;
+        width: 18px;
+        border-radius: 50%;
+        background: white;
+        outline: solid 3px #969696;
+        cursor: pointer;
+        -webkit-appearance: none;
+        margin-top: -5px;
+      }
+
       .trash-button-container {
         flex: 1;
         display: grid;
@@ -27,6 +74,7 @@ export class PainShapes extends LitElement {
         background-image: url(/assets/icons/Bereich-Trashcan.png);
         background-size: contain;
         background-repeat: no-repeat;
+        cursor: pointer;
       }
 
       ul {
@@ -54,15 +102,15 @@ export class PainShapes extends LitElement {
   items: PainShapeRadius[] = [
     {
       id: 1,
-      radius: 20,
+      radius: 30,
     },
     {
       id: 2,
-      radius: 20,
+      radius: 30,
     },
     {
       id: 3,
-      radius: 20,
+      radius: 30,
     },
   ];
 
@@ -78,7 +126,7 @@ export class PainShapes extends LitElement {
                 type="range"
                 id="${item.id}"
                 min="1"
-                max="70"
+                max="100"
                 value="${item.radius}"
                 step="1"
                 @input=${(e: Event) => {
@@ -101,7 +149,7 @@ export class PainShapes extends LitElement {
             @click=${() => {
               const newItem = {
                 id: (_.maxBy(this.items, (i) => i.id)?.id ?? 0) + 1,
-                radius: 20,
+                radius: 30,
               };
               this.items = [...this.items, newItem];
             }}
