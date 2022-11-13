@@ -17,8 +17,7 @@
     }
 
     #parameters {
-      height: 40vh;
-      margin: 18px;
+      display: none;
     }
 
     #animation {
@@ -242,7 +241,7 @@
       <h3>SCHMERZBEREICH</h3>
       <h3 id="toggle-schmerzbereich">X</h3>
     </div>
-    <div id="toggle-schmerzbereich-parameters">
+    <div id="toggle-schmerzbereich-parameters" class="parameters">
       <pain-shapes></pain-shapes>
       <div class="row">
         <div class="divider"></div>
@@ -259,7 +258,7 @@
       <h3>FORM</h3>
       <h3 id="toggle-form">X</h3>
     </div>
-    <div id="toggle-form-parameters">
+    <div id="toggle-form-parameters" class="parameters">
       <div class="row">
         <label for="roundness">Rund/Zackig</label>
         <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
@@ -279,7 +278,7 @@
       <h3>MATERIALITÄT</h3>
       <h3 id="toggle-materialitaet">X</h3>
     </div>
-    <div id="toggle-materialitaet-parameters">
+    <div id="toggle-materialitaet-parameters" class="parameters">
       <div class="row">
         <label for="alphaRatio">Schärfe</label>
         <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0" step="0.01">
@@ -297,7 +296,7 @@
       <h3>FARBE</h3>
       <h3 id="toggle-farbe">X</h3>
     </div>
-    <div id="toggle-farbe-parameters">
+    <div id="toggle-farbe-parameters" class="parameters">
       <form class="row custom-picker">
         <label style="justify-content: left;">Farbe</label>
         <div style="flex: 3; display: flex;">
@@ -360,7 +359,7 @@
       <h3>ANIMATION</h3>
       <h3 id="toggle-animation">X</h3>
     </div>
-    <div id="toggle-animation-parameters">
+    <div id="toggle-animation-parameters" class="parameters">
       <form class="row">
         <legend>Parameter</legend>
         <div>
@@ -441,28 +440,39 @@
     }
   ]
 
+  const switchVisibility = (toggleElement, section) => {
+    section.visible = !section.visible
+    const parameters = document.getElementById(section.toggleId + "-parameters")
+    const joyDiv = document.getElementById("joyDiv")
+    if (section.visible) {
+      toggleElement.innerText = "X"
+      parameters.style.display = "block"
+
+      if (section.toggleId === "toggle-animation" && joyDiv) {
+        joyDiv.style.display = "block"
+      }
+    } else {
+      toggleElement.innerText = "+"
+      parameters.style.display = "none"
+      if (section.toggleId === "toggle-animation" && joyDiv) {
+        joyDiv.style.display = "none"
+      }
+    }
+  }
+
   for (const section of sections) {
     const toggleElement = document.getElementById(section.toggleId)
-    toggleElement.addEventListener("click", function (e) {
-      section.visible = !section.visible
-      const parameters = document.getElementById(section.toggleId + "-parameters")
-      if (section.visible) {
-        this.innerText = "X"
-        parameters.style.display = "block"
-
-        if (section.toggleId === "toggle-animation") {
-          document.getElementById("joyDiv").style.display = "block"
-        }
-      } else {
-        this.innerText = "+"
-        parameters.style.display = "none"
-        if (section.toggleId === "toggle-animation") {
-          document.getElementById("joyDiv").style.display = "none"
-        }
-      }
+    toggleElement.addEventListener("click", function (_) {
+      switchVisibility(toggleElement, section)
     })
   }
 
+  // joystick must be visible so we need to await until after 
+  for (const section of sections) {
+    const clickEvent = new MouseEvent("click")
+    const toggleElement = document.getElementById(section.toggleId)
+    toggleElement.dispatchEvent(clickEvent)
+  }
 </script>
 
 </html>

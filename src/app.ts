@@ -77,11 +77,7 @@ const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
 Assets.addBundle("body", { headLeft: "./assets/head.jpg" });
 const assetsPromise = Assets.loadBundle("body");
 
-const joystick = new JoyStick("joyDiv", {
-  internalFillColor: "grey",
-  externalStrokeColor: "grey",
-  autoReturnToCenter: false,
-});
+let joystick: any | undefined;
 
 const cardinalDirectionToBBPoint = (dir: string): [number, number] => {
   switch (dir) {
@@ -172,7 +168,7 @@ const updatedModel = (oldModel?: Model): Model => {
     animationType: checkedRadioBtn("animation-curve") as "off" | "linear-in" | "linear-out" | "soft", // 0: off, 1: linear-in, 2: linear-out, 3: soft
     frequencyHz: valueFromSlider("frequencyHz"),
     amplitude: 1 - valueFromSlider("amplitude"),
-    origin: cardinalDirectionToBBPoint(joystick.GetDir()),
+    origin: cardinalDirectionToBBPoint(joystick?.GetDir() ?? "C"),
     animationParamter: checkedRadioBtn("animation-parameter") as
       | "radius"
       | "dissolve"
@@ -216,6 +212,11 @@ const init = async (): Promise<void> => {
     assetsPromise,
   ]);
   clipper = clipperResolved;
+  joystick = new JoyStick("joyDiv", {
+    internalFillColor: "grey",
+    externalStrokeColor: "grey",
+    autoReturnToCenter: false,
+  });
 
   // add bg image
   const backgroundImage = new Sprite(assetsResolved.headLeft);
@@ -531,4 +532,4 @@ const animate = (time: number): void => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-init();
+//init();
