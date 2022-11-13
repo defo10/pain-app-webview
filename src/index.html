@@ -182,8 +182,43 @@
       outline: 2px solid #616161;
     }
 
-    .inverted-selection [type=radio]:checked+div {
-      background-color: #cfcfcf;
+    .animation-radio-button {
+      height: 32px;
+      width: 32px;
+      border-radius: 50%;
+      background-size: contain;
+    }
+
+    #off+div {
+      background-image: url(/assets/icons/aus_clear.png);
+    }
+
+    #off:checked+div {
+      background-image: url(/assets/icons/aus_selected.png);
+    }
+
+    #linear-out+div {
+      background-image: url(/assets/icons/Abbauend_clear.png);
+    }
+
+    #linear-out:checked+div {
+      background-image: url(/assets/icons/Abbauen_selected.png);
+    }
+
+    #linear-in+div {
+      background-image: url(/assets/icons/Aufbauend_clear.png);
+    }
+
+    #linear-in:checked+div {
+      background-image: url(/assets/icons/Aufbauend_selected.png);
+    }
+
+    #soft+div {
+      background-image: url(/assets/icons/Gleichmaessig_clear.png);
+    }
+
+    #soft:checked+div {
+      background-image: url(/assets/icons/gleichmaessig_selected.png);
     }
 
     .custom-picker label {
@@ -343,31 +378,25 @@
           <label for="roundness">Rund/Zackig</label>
         </div>
       </form>
-      <div class="row custom-picker inverted-selection">
+      <div class="row custom-picker">
         <legend>Animation</legend>
         <label>
           <input type="radio" id="off" value="off" name="animation-curve" checked>
-          <div
-            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Aus.png); background-size: contain;">
+          <div class="animation-radio-button" style="outline: none;">
           </div>
         </label>
         <label>
           <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
-          <div
-            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Abbauend.png); background-size: contain;">
+          <div class="animation-radio-button" style="outline: none;">
           </div>
         </label>
         <label>
           <input type="radio" id="linear-in" value="linear-in" name="animation-curve">
-          <div
-            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Aufbauend.png); background-size: contain;">
-          </div>
+          <div class="animation-radio-button" style="outline: none;"></div>
         </label>
         <label>
           <input type="radio" id="soft" value="soft" name="animation-curve">
-          <div
-            style="height: 32px; width: 32px; border-radius: 50%; background-image: url(/assets/icons/Gleichmäßig.png); background-size: contain;">
-          </div>
+          <div class="animation-radio-button" style="outline: none;"></div>
         </label>
       </div>
       <div class="row">
