@@ -36,6 +36,7 @@ import KernelSource from "./filters/kernelsource.frag";
 import { JoyStick } from "./joy";
 import simplify from "simplify-js";
 import { AnimationBuilder } from "./animation_builder";
+import "./components";
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);

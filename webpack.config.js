@@ -1,4 +1,5 @@
 const path = require('path')
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 
 // src for commented optimizations is pixi-hotwire
@@ -58,5 +59,10 @@ module.exports = (env, argv) => ({
   },
   experiments: {
     syncWebAssembly: true,
-  }
+  },
+  plugins: [new HtmlWebpackPlugin({
+    title: "Pain App",
+    filename: "index.html",
+    template: 'src/index.html',
+  })],
 })
