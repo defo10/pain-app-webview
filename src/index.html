@@ -247,6 +247,59 @@
       background-image: url(./assets/icons/gleichmaessig_selected.png);
     }
 
+    /* animation parameters */
+    input[type=radio]:disabled+div {
+      cursor: unset;
+    }
+
+    #animate-radius+div {
+      background-image: url(./assets/icons/Animationsparameter/size-clear.png);
+    }
+
+    #animate-radius:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/size-selected.png);
+    }
+
+    #animate-radius:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/size-inactive.png);
+    }
+
+    #animate-dissolve+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-clear.png);
+    }
+
+    #animate-dissolve:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-selected.png);
+    }
+
+    #animate-dissolve:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-inactive.png);
+    }
+
+    #animate-alphaFallOutEnd+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-clear.png);
+    }
+
+    #animate-alphaFallOutEnd:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-selected.png);
+    }
+
+    #animate-alphaFallOutEnd:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-inactive.png);
+    }
+
+    #animate-outerOffsetRatio+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-clear.png);
+    }
+
+    #animate-outerOffsetRatio:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-selected.png);
+    }
+
+    #animate-outerOffsetRatio:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-inactive.png);
+    }
+
     .custom-picker label {
       display: grid;
       justify-content: center;
@@ -383,32 +436,10 @@
       <h3 id="toggle-animation" style="cursor: pointer;">X</h3>
     </div>
     <div id="toggle-animation-parameters" class="parameters">
-      <form class="row">
-        <legend>Parameter</legend>
-        <div>
-          <input type="radio" id="radius" value="radius" name="animation-parameter" checked>
-          <label for="radius">Größe</label>
-          <input type="radio" id="dissolve" value="dissolve" name="animation-parameter">
-          <label for="dissolve">Menge</label>
-          <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter">
-          <label for="innerColorStart">Farbverlauf</label>
-          <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter">
-          <label for="alphaFallOutEnd">Transparenz</label>
-          <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter">
-          <label for="outerOffsetRatio">Konzentriert/Strahlend</label>
-          <input type="radio" id="roundness" value="roundness" name="animation-parameter">
-          <label for="roundness">Rund/Zackig</label>
-        </div>
-      </form>
       <div class="row custom-picker">
-        <legend>Animation</legend>
+        <label for="animation-curve">Verhalten</label>
         <label>
           <input type="radio" id="off" value="off" name="animation-curve" checked>
-          <div class="animation-radio-button" style="outline: none;">
-          </div>
-        </label>
-        <label>
-          <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
           <div class="animation-radio-button" style="outline: none;">
           </div>
         </label>
@@ -417,23 +448,47 @@
           <div class="animation-radio-button" style="outline: none;"></div>
         </label>
         <label>
+          <input type="radio" id="linear-out" value="linear-out" name="animation-curve">
+          <div class="animation-radio-button" style="outline: none;">
+          </div>
+        </label>
+        <label>
           <input type="radio" id="soft" value="soft" name="animation-curve">
           <div class="animation-radio-button" style="outline: none;"></div>
         </label>
       </div>
+      <form class="row custom-picker">
+        <label for="animation-parameter" class="disabled-grey">Parameter</label>
+        <label>
+          <input type="radio" id="animate-radius" value="radius" name="animation-parameter" checked disabled>
+          <div class="animation-radio-button" style="outline: none;"></div>
+        </label>
+        <label>
+          <input type="radio" id="animate-outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter"
+            disabled>
+          <div class="animation-radio-button" style="outline: none;"></div>
+        </label>
+        <label>
+          <input type="radio" id="animate-dissolve" value="dissolve" name="animation-parameter" disabled>
+          <div class="animation-radio-button" style="outline: none;"></div>
+        </label>
+        <label>
+          <input type="radio" id="animate-alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter" disabled>
+          <div class="animation-radio-button" style="outline: none;"></div>
+        </label>
+      </form>
       <div class="row">
         <div class="divider"></div>
       </div>
       <div class="row">
-        <label for="frequencyHz">Frequenz</label>
-        <input type="range" id="frequencyHz" name="frequencyHz" min="0.4" max="5" value="1" step="0.01"
-          list="frequencies">
+        <label for="frequencyHz" class="disabled-grey">Frequenz</label>
+        <input type="range" id="frequencyHz" name="frequencyHz" min="0.4" max="5" value="1" step="0.01" disabled>
       </div>
       <div class="row">
-        <label>Amplitude</label>
-        <input type="range" id="amplitude" name="amplitude" min="0.1" max="1" value="0.5" step="0.01">
+        <label for="amplitude" class="disabled-grey">Volumen</label>
+        <input type="range" id="amplitude" name="amplitude" min="0.1" max="1" value="0.5" step="0.01" disabled>
       </div>
-      <legend>Animationsrichtung:</legend>
+      <legend>Richtung</legend>
       <div style="padding-top: 140px;"></div>
     </div>
     <div id="joyDiv" style="position: fixed; right: 10%; top: 70%; width:120px;height:120px;margin:20px;"></div>
@@ -513,16 +568,44 @@
     label.classList.remove("disabled-grey")
   }
 
+  const setRadioBtn = (id, disabled) => {
+    const animationOn = !document.getElementById("off").checked
+    const parameter = document.getElementById(id)
+    if (animationOn) parameter.disabled = disabled
+  }
+
+  document.getElementById("alphaRatio").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 1) {
+      setRadioBtn("animate-alphaFallOutEnd", true)
+    } else {
+      setRadioBtn("animate-alphaFallOutEnd", false)
+    }
+  })
+
+  document.getElementById("dissolve").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 0) {
+      setRadioBtn("animate-dissolve", true)
+      setRadioBtn("animate-radius", false)
+    } else {
+      setRadioBtn("animate-dissolve", false)
+      setRadioBtn("animate-radius", true)
+    }
+  })
+
   document.getElementById("outerOffsetRatio").addEventListener("input", (e) => {
     const value = e.target.value
     if (value == 0) {
       for (const id of ["roundness", "wings"]) {
         disableSlider(id)
       }
+      setRadioBtn("animate-outerOffsetRatio", true)
     } else {
       for (const id of ["roundness", "wings"]) {
         enableSlider(id)
       }
+      setRadioBtn("animate-outerOffsetRatio", false)
     }
   })
 
@@ -533,6 +616,46 @@
         disableSlider("colorShift")
       } else {
         enableSlider("colorShift")
+      }
+    })
+  )
+
+  document.querySelectorAll("input[name=animation-curve]").forEach(el =>
+    el.addEventListener("change", (e) => {
+      const checkedElement = document.querySelector("input[name=animation-curve]:checked").value
+      if (checkedElement === "off") {
+        for (const id of ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]) {
+          const elem = document.getElementById(id)
+          elem.disabled = true;
+        }
+        const labelRadioBtns = document.querySelector("label[for=animation-parameter]")
+        labelRadioBtns.classList.add("disabled-grey")
+        disableSlider("frequencyHz")
+        disableSlider("amplitude")
+        // TODO joystick filter?
+      } else {
+        const [radiusAnim, outerOffsetAnim, dissolveAnim, alphaAnim] = ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]
+
+        const dissolveSlider = document.getElementById("dissolve")
+        if (dissolveSlider.value == 0) {
+          document.getElementById(radiusAnim).disabled = false
+          document.getElementById(dissolveAnim).disabled = true
+        } else {
+          document.getElementById(radiusAnim).disabled = true
+          document.getElementById(dissolveAnim).disabled = false
+        }
+
+        const transparencySlider = document.getElementById("alphaRatio")
+        if (transparencySlider.value != 1) document.getElementById(alphaAnim).disabled = false
+
+        const outerOffsetSlider = document.getElementById("outerOffsetRatio")
+        if (outerOffsetSlider.value != 0) document.getElementById(outerOffsetAnim).disabled = false
+
+        const labelRadioBtns = document.querySelector("label[for=animation-parameter]")
+        labelRadioBtns.classList.remove("disabled-grey")
+        enableSlider("frequencyHz")
+        enableSlider("amplitude")
+        // TODO joystick filter?
       }
     })
   )
