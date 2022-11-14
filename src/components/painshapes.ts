@@ -144,19 +144,21 @@ export class PainShapes extends LitElement {
             </li>
           `
         )}
-        <div class="center">
-          <button
-            @click=${() => {
-              const newItem = {
-                id: (_.maxBy(this.items, (i) => i.id)?.id ?? 0) + 1,
-                radius: 30,
-              };
-              this.items = [...this.items, newItem];
-            }}
-          >
-            +
-          </button>
-        </div>
+        ${this.items.length >= 6
+          ? ""
+          : html`<div class="center">
+              <button
+                @click=${() => {
+                  const newItem = {
+                    id: (_.maxBy(this.items, (i) => i.id)?.id ?? 0) + 1,
+                    radius: 30,
+                  };
+                  this.items = [...this.items, newItem];
+                }}
+              >
+                +
+              </button>
+            </div>`}
       </ul>
     `;
   }
