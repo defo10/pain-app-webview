@@ -196,8 +196,8 @@ export function polygon2starshape(
   // ratio how much polygon inflates, with 0 being completely inside, and 1 being completely outside
   const outerRatio = clamp(dissolve ** 2, 0.1, 0.9);
   const wingLength = getWingLength(outerOffsetRatio, scaling);
-  // clamp so that there are at least 5 wings and at most 50
-  const numWings = clamp(wings, 5, circumference > 40 ? 30 : 10);
+  const wingWidth = clamp(circumference / wings, 2.5, 20);
+  const numWings = Math.round(circumference / wingWidth);
   const step = 1.0 / numWings;
   const midDelta = 0.5 * step;
 
