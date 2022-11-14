@@ -137,7 +137,11 @@ interface Transformation {
   transform: (p: EuclidPoint, uPerpendicular: EuclidPoint) => [number, number];
 }
 
-function traversePolygonAtSteps(polygon: EuclidPolygon, I: Transformation[]): Array<[number, number]> {
+function traversePolygonAtSteps(
+  polygon: EuclidPolygon,
+  I: Transformation[],
+  circumference?: number
+): Array<[number, number]> {
   if (I.length === 0) return [];
 
   const transformedPolygon = [];
@@ -148,7 +152,7 @@ function traversePolygonAtSteps(polygon: EuclidPolygon, I: Transformation[]): Ar
 
   for (const e of polygon.edges) {
     // this is the max i in polygon normalized space ([0..1]) of this edge
-    const iPolygonOfEdge = e.length / polygon.circumference;
+    const iPolygonOfEdge = e.length / (circumference ?? polygon.circumference);
     while (nextSmallest != null && nextSmallest.i <= iPolygon + iPolygonOfEdge) {
       const iOnEdge = nextSmallest.i - iPolygon;
       const pointAtI = e.at(iOnEdge);
@@ -181,17 +185,19 @@ export function polygon2starshape(
     [...contourUnsorted, lerpPoints(contourUnsorted[contourUnsorted.length - 1], contourUnsorted[0], 0.9)],
     { tension: 0.0 }
   );
-  const smoothContour = smoothInterpolator.getPoints(200) as Array<[number, number]>;
+  const smoothContour = smoothInterpolator.getPoints(100) as Array<[number, number]>;
   const mostRight = _.maxBy(smoothContour, ([x, y]) => x) as [number, number];
   const indexMostRight = smoothContour.findIndex((p) => p === mostRight);
   const contour = [...smoothContour.slice(indexMostRight), ...smoothContour.slice(0, indexMostRight)];
   const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
+  // circumference is calculated each call again, which the flame graph showed had bad performance
+  const circumference = polygon.circumference;
   const scaling = clamp(1 - dissolve, 0.5, 1);
   // ratio how much polygon inflates, with 0 being completely inside, and 1 being completely outside
   const outerRatio = clamp(dissolve ** 2, 0.1, 0.9);
   const wingLength = getWingLength(outerOffsetRatio, scaling);
   // clamp so that there are at least 5 wings and at most 50
-  const numWings = clamp(wings, 5, polygon.circumference > 40 ? 30 : 10);
+  const numWings = clamp(wings, 5, circumference > 40 ? 30 : 10);
   const step = 1.0 / numWings;
   const midDelta = 0.5 * step;
 
@@ -231,7 +237,7 @@ export function polygon2starshape(
     transformations.push(base, outerPointRight, outerPoint, outerPointLeft);
   }
 
-  const starshape = traversePolygonAtSteps(polygon, transformations);
+  const starshape = traversePolygonAtSteps(polygon, transformations, circumference);
   const curveInterpolator = new CurveInterpolator(
     [
       ...starshape,
