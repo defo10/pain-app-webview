@@ -112,7 +112,7 @@ export class PainShapes extends LitElement {
               <input
                 type="range"
                 id="${item.id}"
-                min="1"
+                min="10"
                 max="100"
                 value="${item.radius}"
                 step="1"
