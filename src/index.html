@@ -12,6 +12,10 @@
       font-size: small;
     }
 
+    :root {
+      --disabled-grey: #d5d5d5;
+    }
+
     body {
       background-color: rgb(243, 243, 243);
     }
@@ -118,6 +122,7 @@
       border-radius: 5px;
     }
 
+
     input[type=range]::-webkit-slider-thumb {
       height: 24px;
       width: 24px;
@@ -127,6 +132,7 @@
       -webkit-appearance: none;
       margin-top: -9.5px;
     }
+
 
     input[type=range]::-moz-range-track {
       height: 6px;
@@ -142,6 +148,26 @@
       background: #616161;
       cursor: pointer;
       margin-top: -9.5px;
+    }
+
+    input[type=range]:disabled::-webkit-slider-runnable-track {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled::-webkit-slider-thumb {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled:-moz-range-track {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled:-moz-range-thumb {
+      background: var(--disabled-grey);
+      cursor: unset;
     }
 
     .row {
@@ -226,6 +252,10 @@
       justify-content: center;
       align-items: center;
     }
+
+    .disabled-grey {
+      color: var(--disabled-grey);
+    }
   </style>
 </head>
 
@@ -254,15 +284,15 @@
     <div id="toggle-form-parameters" class="parameters">
       <div class="row">
         <label for="outerOffsetRatio">Strahlen</label>
-        <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05">
+        <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.01">
       </div>
       <div class="row">
-        <label for="roundness">Rund/Zackig</label>
-        <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01">
+        <label for="roundness" class="disabled-grey">Rund/Zackig</label>
+        <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01" disabled>
       </div>
       <div class="row">
-        <label for="wings">Feinheit</label>
-        <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1">
+        <label for="wings" class="disabled-grey">Feinheit</label>
+        <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1" disabled>
       </div>
     </div>
   </div>
@@ -342,8 +372,8 @@
         </div>
       </form>
       <div class="row">
-        <label for="colorShift">Verlauf</label>
-        <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01">
+        <label for="colorShift" class="disabled-grey">Verlauf</label>
+        <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01" disabled>
       </div>
     </div>
   </div>
@@ -468,6 +498,44 @@
     const toggleElement = document.getElementById(section.toggleId)
     toggleElement.dispatchEvent(clickEvent)
   }
+
+  const disableSlider = (id) => {
+    const elem = document.getElementById(id)
+    elem.disabled = true
+    const label = document.querySelector(`label[for=${id}]`)
+    label.classList.add("disabled-grey")
+  }
+
+  const enableSlider = (id) => {
+    const elem = document.getElementById(id)
+    elem.disabled = false
+    const label = document.querySelector(`label[for=${id}]`)
+    label.classList.remove("disabled-grey")
+  }
+
+  document.getElementById("outerOffsetRatio").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 0) {
+      for (const id of ["roundness", "wings"]) {
+        disableSlider(id)
+      }
+    } else {
+      for (const id of ["roundness", "wings"]) {
+        enableSlider(id)
+      }
+    }
+  })
+
+  document.querySelectorAll("input[name=outerColor]").forEach(el =>
+    el.addEventListener("change", (e) => {
+      const checkedElement = document.querySelector("input[name=outerColor]:checked").value
+      if (checkedElement === "transparency") {
+        disableSlider("colorShift")
+      } else {
+        enableSlider("colorShift")
+      }
+    })
+  )
 </script>
 
 </html>
