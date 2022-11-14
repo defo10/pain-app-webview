@@ -99,20 +99,7 @@ export class PainShapes extends LitElement {
   ];
 
   @state()
-  items: PainShapeRadius[] = [
-    {
-      id: 1,
-      radius: 30,
-    },
-    {
-      id: 2,
-      radius: 30,
-    },
-    {
-      id: 3,
-      radius: 30,
-    },
-  ];
+  items: PainShapeRadius[] = [];
 
   render() {
     return html`
