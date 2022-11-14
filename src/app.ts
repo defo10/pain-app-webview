@@ -179,7 +179,7 @@ const updatedModel = (oldModel?: Model): Model => {
     considerConnectedLowerBound: 0.75,
     gravitationForceVisibleLowerBound: 0.5,
     painShapes,
-    closeness: valueFromSlider("closeness"),
+    closeness: 0.5,
     dissolve: valueFromSlider("dissolve"),
     innerColorStart: valueFromSlider("colorShift"),
     alphaFallOutEnd: 1 - valueFromSlider("alphaRatio"),
