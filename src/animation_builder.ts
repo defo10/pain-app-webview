@@ -73,8 +73,11 @@ export class AnimationBuilder {
     const timeSinceStart = (this.lastTime + timeShift) % timePerLoop;
     const t = timeSinceStart / timePerLoop;
 
-    const motion = this.motionFn(t); // 0..1
-    const amplitudeClampedMotion = lerp(this.amplitude, 1, motion);
+    const motion = this.motionFn(t); // 0.. 1
+    // amplitude is based on distance: the farther away from origin,
+    // the lower the amplitude, i.e. the less animated the point is
+    const distanceCorrectedAmplitude = lerp(this.amplitude, 1, distanceRatio);
+    const amplitudeClampedMotion = lerp(distanceCorrectedAmplitude, 1, motion);
     return amplitudeClampedMotion;
   }
 }
