@@ -584,12 +584,12 @@
 
   document.getElementById("dissolve").addEventListener("input", (e) => {
     const value = e.target.value
-    if (value == 0) {
-      setRadioBtn("animate-dissolve", true)
+    if (value == 1 || value == 0) {
       setRadioBtn("animate-radius", false)
+      setRadioBtn("animate-dissolve", true)
     } else {
       setRadioBtn("animate-dissolve", false)
-      setRadioBtn("animate-radius", true)
+      setRadioBtn("animate-radius", false)
     }
   })
 
@@ -638,11 +638,11 @@
         const [radiusAnim, outerOffsetAnim, dissolveAnim, alphaAnim] = ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]
 
         const dissolveSlider = document.getElementById("dissolve")
-        if (dissolveSlider.value == 0) {
+        if (dissolveSlider.value == 1 || dissolveSlider.value == 0) {
           document.getElementById(radiusAnim).disabled = false
           document.getElementById(dissolveAnim).disabled = true
         } else {
-          document.getElementById(radiusAnim).disabled = true
+          document.getElementById(radiusAnim).disabled = false
           document.getElementById(dissolveAnim).disabled = false
         }
 
