@@ -3,6 +3,10 @@
       font-size: small;
     }
 
+    :root {
+      --disabled-grey: #d5d5d5;
+    }
+
     body {
       background-color: rgb(243, 243, 243);
     }
@@ -28,7 +32,7 @@
 
     h3 {
       color: #f05959;
-      font-size: 1.1em;
+      font-size: 1.3em;
       margin: 0;
     }
 
@@ -41,13 +45,13 @@
     #form {
       position: absolute;
       left: 5%;
-      top: 42%;
+      top: 46%;
     }
 
     #materialitaet {
       position: absolute;
       left: 5%;
-      top: 70%;
+      top: 72%;
     }
 
     #farbe {
@@ -59,7 +63,7 @@
     #animation {
       position: absolute;
       right: 5%;
-      top: 41%;
+      top: 39%;
     }
 
     #background {
@@ -71,24 +75,13 @@
       display: grid;
       justify-content: center;
       align-content: center;
-    }
-
-    #circle {
-      background: white;
-      width: 70vw;
-      height: 70vw;
-      border-radius: 50%;
+      align-items: center;
+      justify-items: center;
     }
 
     #circleContentContainer {
-      margin: 15% 15% 15% 15%;
-      height: 70%;
-      width: 70%;
-      display: grid;
-      justify-content: center;
-      align-content: center;
-      align-items: center;
-      justify-items: center;
+      aspect-ratio: 1;
+      width: 60vw;
     }
 
     /* custom sliders: */
@@ -109,6 +102,7 @@
       border-radius: 5px;
     }
 
+
     input[type=range]::-webkit-slider-thumb {
       height: 24px;
       width: 24px;
@@ -118,6 +112,7 @@
       -webkit-appearance: none;
       margin-top: -9.5px;
     }
+
 
     input[type=range]::-moz-range-track {
       height: 6px;
@@ -133,6 +128,26 @@
       background: #616161;
       cursor: pointer;
       margin-top: -9.5px;
+    }
+
+    input[type=range]:disabled::-webkit-slider-runnable-track {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled::-webkit-slider-thumb {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled:-moz-range-track {
+      background: var(--disabled-grey);
+      cursor: unset;
+    }
+
+    input[type=range]:disabled:-moz-range-thumb {
+      background: var(--disabled-grey);
+      cursor: unset;
     }
 
     .row {
@@ -212,11 +227,72 @@
       background-image: url(./assets/icons/gleichmaessig_selected.png);
     }
 
+    /* animation parameters */
+    input[type=radio]:disabled+div {
+      cursor: unset;
+    }
+
+    #animate-radius+div {
+      background-image: url(./assets/icons/Animationsparameter/size-clear.png);
+    }
+
+    #animate-radius:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/size-selected.png);
+    }
+
+    #animate-radius:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/size-inactive.png);
+    }
+
+    #animate-dissolve+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-clear.png);
+    }
+
+    #animate-dissolve:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-selected.png);
+    }
+
+    #animate-dissolve:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/amount-inactive.png);
+    }
+
+    #animate-alphaFallOutEnd+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-clear.png);
+    }
+
+    #animate-alphaFallOutEnd:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-selected.png);
+    }
+
+    #animate-alphaFallOutEnd:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/gradient-inactive.png);
+    }
+
+    #animate-outerOffsetRatio+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-clear.png);
+    }
+
+    #animate-outerOffsetRatio:checked+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-selected.png);
+    }
+
+    #animate-outerOffsetRatio:disabled+div {
+      background-image: url(./assets/icons/Animationsparameter/spikes-inactive.png);
+    }
+
     .custom-picker label {
       display: grid;
       justify-content: center;
       align-items: center;
-    }</style><script defer="defer" src="index.js"></script></head><body><div id="background"><div id="circle"><div id="circleContentContainer"><canvas id="animations-canvas"></canvas></div></div></div><div id="schmerzbereich" class="box"><div class="row"><h3>SCHMERZBEREICH</h3><h3 id="toggle-schmerzbereich" style="cursor: pointer;">X</h3></div><div id="toggle-schmerzbereich-parameters" class="parameters"><pain-shapes></pain-shapes><div class="row"><div class="divider"></div></div><div class="row"><label for="closeness">Gravitation</label> <input type="range" id="closeness" name="closeness" min="0" max="0.95" value="0.5" step="0.005"></div></div></div><div id="form" class="box"><div class="row"><h3>FORM</h3><h3 id="toggle-form" style="cursor: pointer;">X</h3></div><div id="toggle-form-parameters" class="parameters"><div class="row"><label for="roundness">Rund/Zackig</label> <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01"></div><div class="row"><label for="outerOffsetRatio">Strahlen</label> <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.05"></div><div class="row"><label for="wings">Feinheit</label> <input type="range" id="wings" name="wings" min="5" max="40" value="8" step="1"></div></div></div><div id="materialitaet" class="box"><div class="row"><h3>MATERIALITÄT</h3><h3 id="toggle-materialitaet" style="cursor: pointer;">X</h3></div><div id="toggle-materialitaet-parameters" class="parameters"><div class="row"><label for="alphaRatio">Schärfe</label> <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0.9" step="0.01"></div><div class="row"><label for="dissolve">Auflösung</label> <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01"></div></div></div><div id="farbe" class="box"><div class="row"><h3>FARBE</h3><h3 id="toggle-farbe" style="cursor: pointer;">X</h3></div><div id="toggle-farbe-parameters" class="parameters"><form class="row custom-picker"><label style="justify-content: left;">Farbe</label><div style="flex: 3; display: flex;"><label><input type="radio" id="redInner" value="red" name="innerColor" checked="checked"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 27, 27); border: 2px solid white"></div></label> <label><input type="radio" id="blueInner" value="blue" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(13, 36, 239); border: 2px solid white"></div></label> <label><input type="radio" id="yellowInner" value="yellow" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 187, 27); border: 2px solid white"></div></label></div></form><div class="row"><label for="lightness">Helligkeit</label> <input type="range" id="lightness" name="lightness" min="0" max="1" value="0.5" step="0.01"></div><div class="row"><div class="divider"></div></div><form class="row custom-picker"><legend>Verlauf zu</legend><div style="flex: 3; display: flex;"><label><input type="radio" id="yellow" value="yellow" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 187, 27)"></div></label> <label><input type="radio" id="orange" value="orange" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 142, 27)"></div></label> <label><input type="radio" id="transparency" value="transparency" name="outerColor" checked="checked"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(196, 196, 196)"></div></label></div></form><div class="row"><label for="colorShift">Verlauf</label> <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01"></div></div></div><div id="animation" class="box"><div class="row"><h3>ANIMATION</h3><h3 id="toggle-animation" style="cursor: pointer;">X</h3></div><div id="toggle-animation-parameters" class="parameters"><form class="row"><legend>Parameter</legend><div><input type="radio" id="radius" value="radius" name="animation-parameter" checked="checked"> <label for="radius">Größe</label> <input type="radio" id="dissolve" value="dissolve" name="animation-parameter"> <label for="dissolve">Menge</label> <input type="radio" id="innerColorStart" value="innerColorStart" name="animation-parameter"> <label for="innerColorStart">Farbverlauf</label> <input type="radio" id="alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter"> <label for="alphaFallOutEnd">Transparenz</label> <input type="radio" id="outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter"> <label for="outerOffsetRatio">Konzentriert/Strahlend</label> <input type="radio" id="roundness" value="roundness" name="animation-parameter"> <label for="roundness">Rund/Zackig</label></div></form><div class="row custom-picker"><legend>Animation</legend><label><input type="radio" id="off" value="off" name="animation-curve" checked="checked"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-out" value="linear-out" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-in" value="linear-in" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="soft" value="soft" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label></div><div class="row"><div class="divider"></div></div><div class="row"><label for="frequencyHz">Frequenz</label> <input type="range" id="frequencyHz" name="frequencyHz" min="0.01" max="10" value="0.3" step="0.01" list="frequencies"></div><div class="row"><label>Amplitude</label> <input type="range" id="amplitude" name="amplitude" min="0" max="1" value="0.5" step="0.01"></div><legend>Animationsrichtung:</legend><div style="padding-top: 140px;"></div></div><div id="joyDiv" style="position: fixed; right: 10%; top: 70%; width:120px;height:120px;margin:20px;"></div></div><area-picker></area-picker></body><script>const sections = [
+    }
+
+    .disabled-grey {
+      color: var(--disabled-grey);
+    }
+
+    .disabled-joystick {
+      filter: brightness(2);
+    }</style><script defer="defer" src="index.js"></script></head><body><div id="background"><div id="circleContentContainer"><canvas id="animations-canvas"></canvas></div></div><div id="schmerzbereich" class="box"><div class="row"><h3>SCHMERZBEREICH</h3><h3 id="toggle-schmerzbereich" style="cursor: pointer;">X</h3></div><div id="toggle-schmerzbereich-parameters" class="parameters"><pain-shapes></pain-shapes></div></div><div id="form" class="box"><div class="row"><h3>FORM</h3><h3 id="toggle-form" style="cursor: pointer;">X</h3></div><div id="toggle-form-parameters" class="parameters"><div class="row"><label for="outerOffsetRatio">Strahlen</label> <input type="range" id="outerOffsetRatio" name="outerOffsetRatio" min="0" max="1" value="0" step="0.01"></div><div class="row"><label for="roundness" class="disabled-grey">Rund/Zackig</label> <input type="range" id="roundness" name="roundness" min="0" max="1" value="0.2" step="0.01" disabled="disabled"></div><div class="row"><label for="wings" class="disabled-grey">Feinheit</label> <input type="range" id="wings" name="wings" min="5" max="40" value="15" step="1" disabled="disabled"></div></div></div><div id="materialitaet" class="box"><div class="row"><h3>MATERIALITÄT</h3><h3 id="toggle-materialitaet" style="cursor: pointer;">X</h3></div><div id="toggle-materialitaet-parameters" class="parameters"><div class="row"><label for="alphaRatio">Schärfe</label> <input type="range" id="alphaRatio" name="alphaRatio" min="0.05" max="1" value="0.9" step="0.01"></div><div class="row"><label for="dissolve">Auflösung</label> <input type="range" id="dissolve" name="dissolve" min="0" max="1" value="0" step="0.01"></div></div></div><div id="farbe" class="box"><div class="row"><h3>FARBE</h3><h3 id="toggle-farbe" style="cursor: pointer;">X</h3></div><div id="toggle-farbe-parameters" class="parameters"><form class="row custom-picker"><label style="justify-content: left;">Farbe</label><div style="flex: 3; display: flex;"><label><input type="radio" id="redInner" value="red" name="innerColor" checked="checked"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 27, 27); border: 2px solid white"></div></label> <label><input type="radio" id="blueInner" value="blue" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(13, 36, 239); border: 2px solid white"></div></label> <label><input type="radio" id="yellowInner" value="yellow" name="innerColor"><div style="height: 32px; width: 32px; border-radius: 50%; background-color: rgb(250, 187, 27); border: 2px solid white"></div></label></div></form><div class="row"><label for="lightness">Helligkeit</label> <input type="range" id="lightness" name="lightness" min="0.3" max="0.8" value="0.5" step="0.01"></div><div class="row"><div class="divider"></div></div><form class="row custom-picker"><legend>Verlauf zu</legend><div style="flex: 3; display: flex;"><label><input type="radio" id="yellow" value="yellow" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 187, 27)"></div></label> <label><input type="radio" id="orange" value="orange" name="outerColor"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(250, 142, 27)"></div></label> <label><input type="radio" id="transparency" value="transparency" name="outerColor" checked="checked"><div style="height: 26px; width: 26px; border-radius: 50%; border: 5px solid rgb(196, 196, 196)"></div></label></div></form><div class="row"><label for="colorShift" class="disabled-grey">Verlauf</label> <input type="range" id="colorShift" name="colorShift" min="0" max="1" value="0.7" step="0.01" disabled="disabled"></div></div></div><div id="animation" class="box"><div class="row"><h3>ANIMATION</h3><h3 id="toggle-animation" style="cursor: pointer;">X</h3></div><div id="toggle-animation-parameters" class="parameters"><div class="row custom-picker"><label for="animation-curve">Verhalten</label> <label><input type="radio" id="off" value="off" name="animation-curve" checked="checked"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-in" value="linear-in" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="linear-out" value="linear-out" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="soft" value="soft" name="animation-curve"><div class="animation-radio-button" style="outline: none;"></div></label></div><div class="row"><div class="divider"></div></div><form class="row custom-picker"><label for="animation-parameter" class="disabled-grey">Parameter</label> <label><input type="radio" id="animate-radius" value="radius" name="animation-parameter" checked="checked" disabled="disabled"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="animate-outerOffsetRatio" value="outerOffsetRatio" name="animation-parameter" disabled="disabled"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="animate-dissolve" value="dissolve" name="animation-parameter" disabled="disabled"><div class="animation-radio-button" style="outline: none;"></div></label> <label><input type="radio" id="animate-alphaFallOutEnd" value="alphaFallOutEnd" name="animation-parameter" disabled="disabled"><div class="animation-radio-button" style="outline: none;"></div></label></form><div class="row"><div class="divider"></div></div><div class="row"><label for="frequencyHz" class="disabled-grey">Frequenz</label> <input type="range" id="frequencyHz" name="frequencyHz" min="0.4" max="5" value="1" step="0.01" disabled="disabled"></div><div class="row"><label for="amplitude" class="disabled-grey">Volumen</label> <input type="range" id="amplitude" name="amplitude" min="0.1" max="1" value="0.5" step="0.01" disabled="disabled"></div><label for="joyDiv" class="disabled-grey">Richtung</label><div style="padding-top: 150px;"></div></div><div id="joyDiv" class="disabled-joystick" style="position: fixed; right: 10%; top: 71%; width:120px;height:120px;margin:20px;"></div></div><area-picker></area-picker></body><script>const sections = [
     {
       toggleId: "toggle-schmerzbereich",
       visible: true,
@@ -245,6 +321,8 @@
     const joyDiv = document.getElementById("joyDiv")
     if (section.visible) {
       toggleElement.innerText = "X"
+      toggleElement.style.marginTop = "0"
+      toggleElement.style.fontSize = "1.3em"
       parameters.style.display = "block"
 
       if (section.toggleId === "toggle-animation" && joyDiv) {
@@ -252,6 +330,8 @@
       }
     } else {
       toggleElement.innerText = "+"
+      toggleElement.style.marginTop = "-0.3em"
+      toggleElement.style.fontSize = "1.8em"
       parameters.style.display = "none"
       if (section.toggleId === "toggle-animation" && joyDiv) {
         joyDiv.style.display = "none"
@@ -271,4 +351,114 @@
     const clickEvent = new MouseEvent("click")
     const toggleElement = document.getElementById(section.toggleId)
     toggleElement.dispatchEvent(clickEvent)
-  }</script></html>
+  }
+
+  const disableSlider = (id) => {
+    const elem = document.getElementById(id)
+    elem.disabled = true
+    const label = document.querySelector(`label[for=${id}]`)
+    label.classList.add("disabled-grey")
+  }
+
+  const enableSlider = (id) => {
+    const elem = document.getElementById(id)
+    elem.disabled = false
+    const label = document.querySelector(`label[for=${id}]`)
+    label.classList.remove("disabled-grey")
+  }
+
+  const setRadioBtn = (id, disabled) => {
+    const animationOn = !document.getElementById("off").checked
+    const parameter = document.getElementById(id)
+    if (animationOn) parameter.disabled = disabled
+  }
+
+  document.getElementById("alphaRatio").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 1) {
+      setRadioBtn("animate-alphaFallOutEnd", true)
+    } else {
+      setRadioBtn("animate-alphaFallOutEnd", false)
+    }
+  })
+
+  document.getElementById("dissolve").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 1 || value == 0) {
+      setRadioBtn("animate-radius", false)
+      setRadioBtn("animate-dissolve", true)
+    } else {
+      setRadioBtn("animate-dissolve", false)
+      setRadioBtn("animate-radius", false)
+    }
+  })
+
+  // TODO must also disable transparency if not trying blur filter!
+  document.getElementById("outerOffsetRatio").addEventListener("input", (e) => {
+    const value = e.target.value
+    if (value == 0) {
+      for (const id of ["roundness", "wings"]) {
+        disableSlider(id)
+      }
+      setRadioBtn("animate-outerOffsetRatio", true)
+    } else {
+      for (const id of ["roundness", "wings"]) {
+        enableSlider(id)
+      }
+      setRadioBtn("animate-outerOffsetRatio", false)
+    }
+  })
+
+  document.querySelectorAll("input[name=outerColor]").forEach(el =>
+    el.addEventListener("change", (e) => {
+      const checkedElement = document.querySelector("input[name=outerColor]:checked").value
+      if (checkedElement === "transparency") {
+        disableSlider("colorShift")
+      } else {
+        enableSlider("colorShift")
+      }
+    })
+  )
+
+  document.querySelectorAll("input[name=animation-curve]").forEach(el =>
+    el.addEventListener("change", (e) => {
+      const checkedElement = document.querySelector("input[name=animation-curve]:checked").value
+      if (checkedElement === "off") {
+        for (const id of ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]) {
+          const elem = document.getElementById(id)
+          elem.disabled = true;
+        }
+        const labelRadioBtns = document.querySelector("label[for=animation-parameter]")
+        labelRadioBtns.classList.add("disabled-grey")
+        disableSlider("frequencyHz")
+        disableSlider("amplitude")
+        document.getElementById("joyDiv").classList.add("disabled-joystick")
+        document.querySelector(`label[for=joyDiv]`).classList.add("disabled-grey")
+      } else {
+        const [radiusAnim, outerOffsetAnim, dissolveAnim, alphaAnim] = ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]
+
+        const dissolveSlider = document.getElementById("dissolve")
+        if (dissolveSlider.value == 1 || dissolveSlider.value == 0) {
+          document.getElementById(radiusAnim).disabled = false
+          document.getElementById(dissolveAnim).disabled = true
+        } else {
+          document.getElementById(radiusAnim).disabled = false
+          document.getElementById(dissolveAnim).disabled = false
+        }
+
+        const transparencySlider = document.getElementById("alphaRatio")
+        if (transparencySlider.value != 1) document.getElementById(alphaAnim).disabled = false
+
+        const outerOffsetSlider = document.getElementById("outerOffsetRatio")
+        if (outerOffsetSlider.value != 0) document.getElementById(outerOffsetAnim).disabled = false
+
+        const labelRadioBtns = document.querySelector("label[for=animation-parameter]")
+        labelRadioBtns.classList.remove("disabled-grey")
+        enableSlider("frequencyHz")
+        enableSlider("amplitude")
+
+        document.getElementById("joyDiv").classList.remove("disabled-joystick")
+        document.querySelector(`label[for=joyDiv]`).classList.remove("disabled-grey")
+      }
+    })
+  )</script></html>
