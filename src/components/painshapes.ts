@@ -33,14 +33,14 @@ export class PainShapes extends LitElement {
       }
 
       input[type="range"]::-webkit-slider-thumb {
-        height: 18px;
-        width: 18px;
+        height: 28px;
+        width: 28px;
         border-radius: 50%;
         background: white;
-        outline: solid 3px #969696;
+        border: solid 3px #969696;
         cursor: pointer;
-        -webkit-appearance: none;
-        margin-top: -5px;
+        margin-top: -10px;
+        box-shadow: none;
       }
 
       input[type="range"]::-moz-range-track {
@@ -51,14 +51,14 @@ export class PainShapes extends LitElement {
       }
 
       input[type="range"]::-moz-range-thumb {
-        height: 18px;
-        width: 18px;
+        height: 28px;
+        width: 28px;
         border-radius: 50%;
         background: white;
-        outline: solid 3px #969696;
+        border: solid 3px #969696;
         cursor: pointer;
-        -webkit-appearance: none;
-        margin-top: -5px;
+        margin-top: -10px;
+        box-shadow: none;
       }
 
       .trash-button-container {
