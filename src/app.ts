@@ -18,6 +18,7 @@ import {
   Ticker,
   PointerEvents,
   InteractionEvent,
+  filters,
 } from "pixi.js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
@@ -494,19 +495,27 @@ const animate = (time: number): void => {
   meshesContainer.zIndex = 1;
 
   if (polygonsHighRes.length > 0) {
-    const graphics = new Graphics();
-    graphics.beginFill(0xff0000, 1);
-
-    const polygons = starShapedPolygons ?? polygonsHighRes;
-    polygons.forEach((arr) => {
-      graphics.drawPolygon(arr.flat());
-    });
-
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
-    graphics.filters = [filter];
-    graphics.endFill();
-    meshesContainer.addChild(graphics);
+
+    const polygons = starShapedPolygons ?? polygonsHighRes;
+    for (const arr of polygons) {
+      const graphics = new Graphics();
+      graphics.beginFill(0xff0000, 1);
+      graphics.drawPolygon(arr.flat());
+      graphics.filters = [filter];
+
+      if (model.outerOffsetRatio > 0) {
+        const centerAprx = [arr[0], arr[Math.floor(arr.length / 2)], arr[arr.length - 1]].reduce(
+          ([xAcc, yAcc], [x, y]) => [xAcc + x / 3, yAcc + y / 3],
+          [0, 0]
+        );
+        graphics.filters.push(new filters.BlurFilter(animationBuilder.t(centerAprx) * model.alphaFallOutEnd ** 2 * 8));
+      }
+
+      graphics.endFill();
+      meshesContainer.addChild(graphics);
+    }
   }
 
   if (staleMeshes) {
