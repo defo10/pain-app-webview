@@ -84,24 +84,13 @@
       display: grid;
       justify-content: center;
       align-content: center;
-    }
-
-    #circle {
-      background: white;
-      width: 70vw;
-      height: 70vw;
-      border-radius: 50%;
+      align-items: center;
+      justify-items: center;
     }
 
     #circleContentContainer {
-      margin: 15% 15% 15% 15%;
-      height: 70%;
-      width: 70%;
-      display: grid;
-      justify-content: center;
-      align-content: center;
-      align-items: center;
-      justify-items: center;
+      aspect-ratio: 1;
+      width: 60vw;
     }
 
     /* custom sliders: */
@@ -318,10 +307,8 @@
 
 <body>
   <div id="background">
-    <div id="circle">
-      <div id="circleContentContainer">
-        <canvas id="animations-canvas"></canvas>
-      </div>
+    <div id="circleContentContainer">
+      <canvas id="animations-canvas"></canvas>
     </div>
   </div>
   <div id="schmerzbereich" class="box">

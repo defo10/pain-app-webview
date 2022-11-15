@@ -62,7 +62,7 @@ const canvasHeight = canvas.clientHeight * DOWNSCALE_FACTOR;
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
   resolution: RESOLUTION,
-  backgroundColor: 0xffffff,
+  backgroundColor: 0xf3f3f3,
   antialias: false,
   useContextAlpha: false,
   autoDensity: true,
@@ -76,29 +76,29 @@ const clipperPromise = clipperLib.loadNativeClipperLibInstanceAsync(
   clipperLib.NativeClipperLibRequestedFormat.WasmWithAsmJsFallback
 );
 Assets.addBundle("body", {
-  wholeFront: "./assets/whole/front.jpg",
-  wholeBack: "./assets/whole/back.jpg",
-  wholeLeft: "./assets/whole/left.jpg",
-  wholeRight: "./assets/whole/right.jpg",
-  partsArmsLeft: "./assets/parts/arms/arm-left.jpg",
-  partsArmsRight: "./assets/parts/arms/arm-right.jpg",
-  partsArmsHandLeft: "./assets/parts/arms/hand-left.jpg",
-  partsArmsHandRight: "./assets/parts/arms/hand-right.jpg",
-  partsHeadBack: "./assets/parts/head/head-back.jpg",
-  partsHeadFront: "./assets/parts/head/head-front.jpg",
-  partsHeadLeft: "./assets/parts/head/head-left.jpg",
-  partsHeadRight: "./assets/parts/head/head-right.jpg",
-  partsLegsFront: "./assets/parts/legs/legs-front.jpg",
-  partsLegsBack: "./assets/parts/legs/legs-back.jpg",
-  partsLegsFootLeft: "./assets/parts/legs/foot-left.jpg",
-  partsLegsFootRight: "./assets/parts/legs/foot-right.jpg",
-  partsLowerBack: "./assets/parts/lower/back.jpg",
-  partsLowerFront: "./assets/parts/lower/front.jpg",
-  partsUpperBack: "./assets/parts/upper/back.jpg",
-  partsUpperFront: "./assets/parts/upper/front.jpg",
-  partsUpperLeft: "./assets/parts/upper/left.jpg",
-  partsUpperRight: "./assets/parts/upper/right.jpg",
-  leer: "./assets/Leer.jpg",
+  wholeFront: "./assets/whole/front.png",
+  wholeBack: "./assets/whole/back.png",
+  wholeLeft: "./assets/whole/left.png",
+  wholeRight: "./assets/whole/right.png",
+  partsArmsLeft: "./assets/parts/arms/arm-left.png",
+  partsArmsRight: "./assets/parts/arms/arm-right.png",
+  partsArmsHandLeft: "./assets/parts/arms/hand-left.png",
+  partsArmsHandRight: "./assets/parts/arms/hand-right.png",
+  partsHeadBack: "./assets/parts/head/head-back.png",
+  partsHeadFront: "./assets/parts/head/head-front.png",
+  partsHeadLeft: "./assets/parts/head/head-left.png",
+  partsHeadRight: "./assets/parts/head/head-right.png",
+  partsLegsFront: "./assets/parts/legs/legs-front.png",
+  partsLegsBack: "./assets/parts/legs/legs-back.png",
+  partsLegsFootLeft: "./assets/parts/legs/foot-left.png",
+  partsLegsFootRight: "./assets/parts/legs/foot-right.png",
+  partsLowerBack: "./assets/parts/lower/back.png",
+  partsLowerFront: "./assets/parts/lower/front.png",
+  partsUpperBack: "./assets/parts/upper/back.png",
+  partsUpperFront: "./assets/parts/upper/front.png",
+  partsUpperLeft: "./assets/parts/upper/left.png",
+  partsUpperRight: "./assets/parts/upper/right.png",
+  leer: "./assets/leer.png",
 });
 const assetsPromise = Assets.loadBundle("body");
 
@@ -268,12 +268,12 @@ const animate = (time: number): void => {
 
   model = updatedModel(model);
 
-  const padding = (_.maxBy(model.painShapes, (ps) => ps.radius)?.radius ?? 1) * 5 * model.closeness;
+  const padding = (_.maxBy(model.painShapes, (ps) => ps.radius)?.radius ?? 1) * 1.3;
   const bb = {
-    minX: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.x - ps.radius)?.position.x ?? 0) - padding),
-    minY: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.y - ps.radius)?.position.y ?? 0) - padding),
-    maxX: (_.maxBy(model.painShapes, (ps) => ps.position.x + ps.radius)?.position.x ?? 0) + padding,
-    maxY: (_.maxBy(model.painShapes, (ps) => ps.position.y + ps.radius)?.position.y ?? 0) + padding,
+    minX: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.x)?.position.x ?? 0) - padding),
+    minY: Math.max(0, (_.minBy(model.painShapes, (ps) => ps.position.y)?.position.y ?? 0) - padding),
+    maxX: (_.maxBy(model.painShapes, (ps) => ps.position.x)?.position.x ?? 0) + padding,
+    maxY: (_.maxBy(model.painShapes, (ps) => ps.position.y)?.position.y ?? 0) + padding,
   };
 
   const offsetX = bb.minX;
