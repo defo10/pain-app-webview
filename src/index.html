@@ -534,6 +534,7 @@
     const joyDiv = document.getElementById("joyDiv")
     if (section.visible) {
       toggleElement.innerText = "X"
+      toggleElement.style.marginTop = "0"
       toggleElement.style.fontSize = "1.3em"
       parameters.style.display = "block"
 
@@ -542,6 +543,7 @@
       }
     } else {
       toggleElement.innerText = "+"
+      toggleElement.style.marginTop = "-0.3em"
       toggleElement.style.fontSize = "1.8em"
       parameters.style.display = "none"
       if (section.toggleId === "toggle-animation" && joyDiv) {
