@@ -41,7 +41,7 @@
 
     h3 {
       color: #f05959;
-      font-size: 1.1em;
+      font-size: 1.3em;
       margin: 0;
     }
 
@@ -54,13 +54,13 @@
     #form {
       position: absolute;
       left: 5%;
-      top: 42%;
+      top: 46%;
     }
 
     #materialitaet {
       position: absolute;
       left: 5%;
-      top: 70%;
+      top: 72%;
     }
 
     #farbe {
@@ -72,7 +72,7 @@
     #animation {
       position: absolute;
       right: 5%;
-      top: 41%;
+      top: 39%;
     }
 
     #background {
@@ -309,6 +309,10 @@
     .disabled-grey {
       color: var(--disabled-grey);
     }
+
+    .disabled-joystick {
+      filter: brightness(2);
+    }
   </style>
 </head>
 
@@ -457,6 +461,9 @@
           <div class="animation-radio-button" style="outline: none;"></div>
         </label>
       </div>
+      <div class="row">
+        <div class="divider"></div>
+      </div>
       <form class="row custom-picker">
         <label for="animation-parameter" class="disabled-grey">Parameter</label>
         <label>
@@ -488,10 +495,11 @@
         <label for="amplitude" class="disabled-grey">Volumen</label>
         <input type="range" id="amplitude" name="amplitude" min="0.1" max="1" value="0.5" step="0.01" disabled>
       </div>
-      <legend>Richtung</legend>
-      <div style="padding-top: 140px;"></div>
+      <label for="joyDiv" class="disabled-grey">Richtung</label>
+      <div style="padding-top: 150px;"></div>
     </div>
-    <div id="joyDiv" style="position: fixed; right: 10%; top: 70%; width:120px;height:120px;margin:20px;"></div>
+    <div id="joyDiv" class="disabled-joystick"
+      style="position: fixed; right: 10%; top: 71%; width:120px;height:120px;margin:20px;"></div>
   </div>
   <area-picker></area-picker>
 
@@ -526,6 +534,7 @@
     const joyDiv = document.getElementById("joyDiv")
     if (section.visible) {
       toggleElement.innerText = "X"
+      toggleElement.style.fontSize = "1.3em"
       parameters.style.display = "block"
 
       if (section.toggleId === "toggle-animation" && joyDiv) {
@@ -533,6 +542,7 @@
       }
     } else {
       toggleElement.innerText = "+"
+      toggleElement.style.fontSize = "1.8em"
       parameters.style.display = "none"
       if (section.toggleId === "toggle-animation" && joyDiv) {
         joyDiv.style.display = "none"
@@ -594,6 +604,7 @@
     }
   })
 
+  // TODO must also disable transparency if not trying blur filter!
   document.getElementById("outerOffsetRatio").addEventListener("input", (e) => {
     const value = e.target.value
     if (value == 0) {
@@ -632,7 +643,8 @@
         labelRadioBtns.classList.add("disabled-grey")
         disableSlider("frequencyHz")
         disableSlider("amplitude")
-        // TODO joystick filter?
+        document.getElementById("joyDiv").classList.add("disabled-joystick")
+        document.querySelector(`label[for=joyDiv]`).classList.add("disabled-grey")
       } else {
         const [radiusAnim, outerOffsetAnim, dissolveAnim, alphaAnim] = ["animate-radius", "animate-outerOffsetRatio", "animate-dissolve", "animate-alphaFallOutEnd"]
 
@@ -655,7 +667,9 @@
         labelRadioBtns.classList.remove("disabled-grey")
         enableSlider("frequencyHz")
         enableSlider("amplitude")
-        // TODO joystick filter?
+
+        document.getElementById("joyDiv").classList.remove("disabled-joystick")
+        document.querySelector(`label[for=joyDiv]`).classList.remove("disabled-grey")
       }
     })
   )
