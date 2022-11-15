@@ -94,6 +94,7 @@ export class PainShapes extends LitElement {
         border: none;
         background-color: unset;
         font-size: 1.5rem;
+        color: black;
       }
     `,
   ];
