@@ -510,7 +510,9 @@ const animate = (time: number): void => {
           ([xAcc, yAcc], [x, y]) => [xAcc + x / 3, yAcc + y / 3],
           [0, 0]
         );
-        graphics.filters.push(new filters.BlurFilter(animationBuilder.t(centerAprx) * model.alphaFallOutEnd ** 2 * 8));
+        graphics.filters.push(
+          new filters.BlurFilter(animationBuilder.t(centerAprx) * model.alphaFallOutEnd ** 2 * 8, 4, RESOLUTION)
+        );
       }
 
       graphics.endFill();
