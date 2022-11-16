@@ -73,7 +73,7 @@
               </div>
             </li>
           `))}
-        ${this.items.length>=6?"":n.html`<div class="center">
+        ${this.items.length>=5?"":n.html`<div class="center">
               <button
                 @click=${()=>{var t,e;const A={id:(null!==(e=null===(t=s.default.maxBy(this.items,(t=>t.id)))||void 0===t?void 0:t.id)&&void 0!==e?e:0)+1,radius:30};this.items=[...this.items,A]}}
               >
