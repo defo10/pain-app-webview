@@ -232,6 +232,24 @@ let staleMeshes: Container;
 let stars: Position[][] = [];
 let clipper: clipperLib.ClipperLibWrapper | undefined;
 
+/* @ts-expect-error because incompatible types. The null buffer is used internally for its types, such that that shader can be compiled already. */
+const nullBuffer = new Buffer({
+  alloc: 4,
+  type: UINT8,
+  width: 2,
+  height: 2,
+});
+
+const kernel = new Kernel(
+  {
+    output: { outputDistance: nullBuffer },
+  },
+  KernelSource
+);
+window.onunload = function () {
+  kernel.delete();
+};
+
 const init = async (assetLocation: string): Promise<void> => {
   const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { [key: string]: Texture }] =
     await Promise.all([clipperPromise, assetsPromise]);
@@ -383,7 +401,7 @@ const animate = (time: number): void => {
   shader.uniforms.motionFnFlag = motionFnToFlag(model.animationType);
 
   // 3. create high res polygon using GPGPU
-  /* @ts-expect-error */
+  /* @ts-expect-error because the type parameters are not accurately detected */
   const buffer = new Buffer({
     alloc: bbHeight * bbWidth,
     type: UINT8,
@@ -391,12 +409,7 @@ const animate = (time: number): void => {
     height: bbHeight,
   });
 
-  const kernel = new Kernel(
-    {
-      output: { outputDistance: buffer },
-    },
-    KernelSource
-  );
+  kernel.updateOutputs({ outputDistance: buffer });
 
   // Layout std140 aligns all structs, like uniform buffers, on the gpu to 16 bytes, so we need to pad the array to 16 bytes length
   const asPaddedVec4 = ({ center, radius }: Shape): number[] => [...center, radius, 0];
@@ -409,7 +422,6 @@ const animate = (time: number): void => {
     },
     new Float32Array(paddedShapes.flat())
   );
-  kernel.delete();
 
   const generateContour = contours()
     .size([bbWidth, bbHeight])

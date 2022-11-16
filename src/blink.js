@@ -846,6 +846,10 @@ highp uint bl_Id() {
             }));
         }
 
+        updateOutputs(outputs) {
+            this.outputs = outputs
+        }
+
         delete() {
             this.steps.forEach(step => step.program.delete());
             this.steps.clear();
