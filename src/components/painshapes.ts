@@ -132,7 +132,7 @@ export class PainShapes extends LitElement {
             </li>
           `
         )}
-        ${this.items.length >= 6
+        ${this.items.length >= 5
           ? ""
           : html`<div class="center">
               <button

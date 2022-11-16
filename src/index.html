@@ -54,13 +54,13 @@
     #form {
       position: absolute;
       left: 5%;
-      top: 46%;
+      top: 41%;
     }
 
     #materialitaet {
       position: absolute;
       left: 5%;
-      top: 72%;
+      top: 67%;
     }
 
     #farbe {
@@ -205,8 +205,8 @@
     }
 
     .thumbnail-image {
-      height: 22px;
-      width: 22px;
+      height: 20px;
+      width: 20px;
       border-radius: 50%;
       background-size: contain;
     }
@@ -309,6 +309,22 @@
     .disabled-joystick {
       filter: brightness(2);
     }
+
+    .image-button {
+      cursor: pointer;
+      height: 18px;
+      width: 18px;
+      background-size: contain;
+      margin-top: -8px;
+    }
+
+    .close-icon {
+      background-image: url(./assets/icons/Close.png);
+    }
+
+    .open-icon {
+      background-image: url(./assets/icons/Open.png);
+    }
   </style>
 </head>
 
@@ -322,10 +338,10 @@
     <div class="row">
       <div class="row">
         <div class="thumbnail-image"
-          style="background-image: url(./assets/icons/Animationsparameter/size-clear.png); margin-right: 8px;"></div>
+          style="background-image: url(./assets/icons/headers/Schmerzbereich.png); margin-right: 8px;"></div>
         <h3>SCHMERZBEREICH</h3>
       </div>
-      <h3 id="toggle-schmerzbereich" style="cursor: pointer;">X</h3>
+      <div id="toggle-schmerzbereich" class="image-button open-icon"></div>
     </div>
     <div id="toggle-schmerzbereich-parameters" class="parameters">
       <pain-shapes></pain-shapes>
@@ -334,11 +350,11 @@
   <div id="form" class="box">
     <div class="row">
       <div class="row">
-        <div class="thumbnail-image"
-          style="background-image: url(./assets/icons/Animationsparameter/spikes-clear.png); margin-right: 8px;"></div>
+        <div class="thumbnail-image" style="background-image: url(./assets/icons/headers/Form.png); margin-right: 8px;">
+        </div>
         <h3>FORM</h3>
       </div>
-      <h3 id="toggle-form" style="cursor: pointer;">X</h3>
+      <div id="toggle-form" class="image-button open-icon"></div>
     </div>
     <div id="toggle-form-parameters" class="parameters">
       <div class="row">
@@ -359,10 +375,10 @@
     <div class="row">
       <div class="row">
         <div class="thumbnail-image"
-          style="background-image: url(./assets/icons/Animationsparameter/amount-clear.png); margin-right: 8px;"></div>
+          style="background-image: url(./assets/icons/headers/Materialitaet.png); margin-right: 8px;"></div>
         <h3>MATERIALITÄT</h3>
       </div>
-      <h3 id="toggle-materialitaet" style="cursor: pointer;">X</h3>
+      <div id="toggle-materialitaet" class="image-button open-icon"></div>
     </div>
     <div id="toggle-materialitaet-parameters" class="parameters">
       <div class="row">
@@ -379,8 +395,13 @@
   <!-- innere farbe-->
   <div id="farbe" class="box">
     <div class="row">
-      <h3>FARBE</h3>
-      <h3 id="toggle-farbe" style="cursor: pointer;">X</h3>
+      <div class="row">
+        <div class="thumbnail-image"
+          style="background-image: url(./assets/icons/headers/Farbe.png); margin-right: 8px;">
+        </div>
+        <h3>FARBE</h3>
+      </div>
+      <div id="toggle-farbe" class="image-button open-icon"></div>
     </div>
     <div id="toggle-farbe-parameters" class="parameters">
       <form class="row custom-picker">
@@ -442,8 +463,12 @@
   </div>
   <div id="animation" class="box">
     <div class="row">
-      <h3>ANIMATION</h3>
-      <h3 id="toggle-animation" style="cursor: pointer;">X</h3>
+      <div class="row">
+        <div class="thumbnail-image"
+          style="background-image: url(./assets/icons/headers/Animation.png); margin-right: 8px;"></div>
+        <h3>ANIMATION</h3>
+      </div>
+      <div id="toggle-animation" class="image-button open-icon"></div>
     </div>
     <div id="toggle-animation-parameters" class="parameters">
       <div class="row custom-picker">
@@ -502,10 +527,10 @@
         <input type="range" id="amplitude" name="amplitude" min="0.1" max="1" value="0.5" step="0.01" disabled>
       </div>
       <label for="joyDiv" class="disabled-grey">Richtung</label>
-      <div style="padding-top: 150px;"></div>
+      <div style="padding-top: 160px;"></div>
     </div>
     <div id="joyDiv" class="disabled-joystick"
-      style="position: fixed; right: 10%; top: 71%; width:120px;height:120px;margin:20px;"></div>
+      style="position: fixed; right: 10%; top: 70%; width:120px;height:120px;margin:20px;"></div>
   </div>
   <area-picker></area-picker>
 
@@ -539,18 +564,16 @@
     const parameters = document.getElementById(section.toggleId + "-parameters")
     const joyDiv = document.getElementById("joyDiv")
     if (section.visible) {
-      toggleElement.innerText = "X"
-      toggleElement.style.marginTop = "0"
-      toggleElement.style.fontSize = "1.3em"
+      toggleElement.classList.remove("open-icon")
+      toggleElement.classList.add("close-icon")
       parameters.style.display = "block"
 
       if (section.toggleId === "toggle-animation" && joyDiv) {
         joyDiv.style.display = "block"
       }
     } else {
-      toggleElement.innerText = "+"
-      toggleElement.style.marginTop = "-0.3em"
-      toggleElement.style.fontSize = "1.8em"
+      toggleElement.classList.remove("close-icon")
+      toggleElement.classList.add("open-icon")
       parameters.style.display = "none"
       if (section.toggleId === "toggle-animation" && joyDiv) {
         joyDiv.style.display = "none"
