@@ -425,17 +425,12 @@ const animate = (time: number): void => {
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
 
-    const polygons = polygonLowRes;
-    for (const arr of polygons) {
-      const graphics = new Graphics();
-      graphics.beginFill(0xff0000, 1);
-      //graphics.drawRect(bb.minX, bb.minY, bbWidth, bbHeight);
-      graphics.drawPolygon(arr.flat());
-      graphics.filters = [filter];
-
-      graphics.endFill();
-      meshesContainer.addChild(graphics);
-    }
+    const graphics = new Graphics();
+    graphics.beginFill(0xff0000, 1);
+    graphics.drawRect(bb.minX, bb.minY, bbWidth, bbHeight);
+    graphics.filters = [filter];
+    graphics.endFill();
+    meshesContainer.addChild(graphics);
   }
 
   if (staleMeshes) {
