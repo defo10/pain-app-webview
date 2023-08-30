@@ -39,6 +39,7 @@
     "webpack-dev-server": "^4.11.1"
   },
   "dependencies": {
+    "@ahryman40k/ts-fhir-types": "^4.0.39",
     "@mathigon/euclid": "^1.1.2",
     "@pixi/accessibility": "^6.5.5",
     "@pixi/assets": "^6.5.5",
