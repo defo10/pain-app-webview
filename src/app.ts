@@ -310,43 +310,43 @@ const animate = (time: number): void => {
   }));
   const threshold = 1 - model.closeness ?? 0.5;
 
-  /// 1. create low res polygon of outer shape
-  const sampleRate = 10;
-  const projectedWidth = Math.round(bbWidth / sampleRate);
-  const projectedHeight = Math.round(bbHeight / sampleRate);
-
-  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-  const falloff = (d: number, radius: number): number => {
-    const R = radius * 2.0;
-    if (d >= R) {
-      return 0.0;
-    }
-    const first = 2.0 * Math.pow(d / R, 3.0);
-    const second = -3.0 * Math.pow(d / R, 2.0);
-    return first + second + 1.0;
-  };
-
-  const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
-  for (let m = 0, k = 0; m < projectedHeight; m++) {
-    for (let n = 0; n < projectedWidth; n++, k++) {
-      const distances = outerShapes.map(({ radius, center }) => {
-        const d = dist(center, [
-          bb.minX + n * sampleRate + sampleRate * 0.5,
-          bb.minY + m * sampleRate + sampleRate * 0.5,
-        ]);
-        return falloff(d, radius);
-      });
-      distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
-    }
-  }
-
-  const calcContour = contours().size([projectedWidth, projectedHeight]).smooth(false).thresholds([threshold]);
-  const [polygonsNew] = calcContour(distMatrix);
-  const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
-    coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
-  );
-
   if (model.dissolve > 0) {
+    /// 1. create low res polygon of outer shape
+    const sampleRate = 10;
+    const projectedWidth = Math.round(bbWidth / sampleRate);
+    const projectedHeight = Math.round(bbHeight / sampleRate);
+
+    // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
+    const falloff = (d: number, radius: number): number => {
+      const R = radius * 2.0;
+      if (d >= R) {
+        return 0.0;
+      }
+      const first = 2.0 * Math.pow(d / R, 3.0);
+      const second = -3.0 * Math.pow(d / R, 2.0);
+      return first + second + 1.0;
+    };
+
+    const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
+    for (let m = 0, k = 0; m < projectedHeight; m++) {
+      for (let n = 0; n < projectedWidth; n++, k++) {
+        const distances = outerShapes.map(({ radius, center }) => {
+          const d = dist(center, [
+            bb.minX + n * sampleRate + sampleRate * 0.5,
+            bb.minY + m * sampleRate + sampleRate * 0.5,
+          ]);
+          return falloff(d, radius);
+        });
+        distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
+      }
+    }
+
+    const calcContour = contours().size([projectedWidth, projectedHeight]).smooth(false).thresholds([threshold]);
+    const [polygonsNew] = calcContour(distMatrix);
+    const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
+      coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
+    );
+
     // 2. fill out with stars if needed
     if (stars.length === 0) {
       const starsPerPolygon: Position[][] = [];
@@ -421,7 +421,7 @@ const animate = (time: number): void => {
   const meshesContainer = new Container();
   meshesContainer.zIndex = 1;
 
-  if (polygonLowRes.length > 0) {
+  if (paddedShapes.length > 0) {
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
 
