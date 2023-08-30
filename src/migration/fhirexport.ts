@@ -1,4 +1,5 @@
-// src/migration/export.ts
+import { Model } from "../model";
+import { R4 as fhir } from "@ahryman40k/ts-fhir-types";
 
 function exportFhir(model: Model): fhir.IQuestionnaireResponse {
   const template: fhir.IQuestionnaireResponse = {
