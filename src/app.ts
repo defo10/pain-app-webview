@@ -310,43 +310,43 @@ const animate = (time: number): void => {
   }));
   const threshold = 1 - model.closeness ?? 0.5;
 
-  if (model.dissolve > 0) {
-    /// 1. create low res polygon of outer shape
-    const sampleRate = 10;
-    const projectedWidth = Math.round(bbWidth / sampleRate);
-    const projectedHeight = Math.round(bbHeight / sampleRate);
+  /// 1. create low res polygon of outer shape
+  const sampleRate = 10;
+  const projectedWidth = Math.round(bbWidth / sampleRate);
+  const projectedHeight = Math.round(bbHeight / sampleRate);
 
-    // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
-    const falloff = (d: number, radius: number): number => {
-      const R = radius * 2.0;
-      if (d >= R) {
-        return 0.0;
-      }
-      const first = 2.0 * Math.pow(d / R, 3.0);
-      const second = -3.0 * Math.pow(d / R, 2.0);
-      return first + second + 1.0;
-    };
-
-    const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
-    for (let m = 0, k = 0; m < projectedHeight; m++) {
-      for (let n = 0; n < projectedWidth; n++, k++) {
-        const distances = outerShapes.map(({ radius, center }) => {
-          const d = dist(center, [
-            bb.minX + n * sampleRate + sampleRate * 0.5,
-            bb.minY + m * sampleRate + sampleRate * 0.5,
-          ]);
-          return falloff(d, radius);
-        });
-        distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
-      }
+  // src: https://link.springer.com/content/pdf/10.1007/BF01900346.pdf
+  const falloff = (d: number, radius: number): number => {
+    const R = radius * 2.0;
+    if (d >= R) {
+      return 0.0;
     }
+    const first = 2.0 * Math.pow(d / R, 3.0);
+    const second = -3.0 * Math.pow(d / R, 2.0);
+    return first + second + 1.0;
+  };
 
-    const calcContour = contours().size([projectedWidth, projectedHeight]).smooth(false).thresholds([threshold]);
-    const [polygonsNew] = calcContour(distMatrix);
-    const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
-      coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
-    );
+  const distMatrix: number[] = new Array(projectedWidth * projectedHeight);
+  for (let m = 0, k = 0; m < projectedHeight; m++) {
+    for (let n = 0; n < projectedWidth; n++, k++) {
+      const distances = outerShapes.map(({ radius, center }) => {
+        const d = dist(center, [
+          bb.minX + n * sampleRate + sampleRate * 0.5,
+          bb.minY + m * sampleRate + sampleRate * 0.5,
+        ]);
+        return falloff(d, radius);
+      });
+      distMatrix[k] = distances.reduce((acc, curr) => acc + curr, 0);
+    }
+  }
 
+  const calcContour = contours().size([projectedWidth, projectedHeight]).smooth(false).thresholds([threshold]);
+  const [polygonsNew] = calcContour(distMatrix);
+  const polygonLowRes = polygonsNew.coordinates.map(([coords]) =>
+    coords.map(([x, y]) => [x * sampleRate + bb.minX, y * sampleRate + bb.minY] as [number, number])
+  );
+
+  if (model.dissolve > 0) {
     // 2. fill out with stars if needed
     if (stars.length === 0) {
       const starsPerPolygon: Position[][] = [];
@@ -401,96 +401,11 @@ const animate = (time: number): void => {
   shader.uniforms.motionFnFlag = motionFnToFlag(model.animationType);
 
   // 3. create high res polygon using GPGPU
-  /* @ts-expect-error because the type parameters are not accurately detected */
-  const buffer = new Buffer({
-    alloc: bbHeight * bbWidth,
-    type: UINT8,
-    width: bbWidth,
-    height: bbHeight,
-  });
-
-  kernel.updateOutputs({ outputDistance: buffer });
-
-  // Layout std140 aligns all structs, like uniform buffers, on the gpu to 16 bytes, so we need to pad the array to 16 bytes length
   const asPaddedVec4 = ({ center, radius }: Shape): number[] => [...center, radius, 0];
   const paddedShapes = [...outerShapesDissolved.map(asPaddedVec4), ...starsAnimated.flat(1).map(asPaddedVec4)];
-  kernel.exec(
-    {
-      points_len: paddedShapes.length,
-      offsetX,
-      offsetY,
-    },
-    new Float32Array(paddedShapes.flat())
-  );
-
-  const generateContour = contours()
-    .size([bbWidth, bbHeight])
-    .thresholds([threshold * 100]); // threshold is scaled because we use 0-100 values in the shader
-  const [sharpPolygons] = generateContour(buffer.data);
-  const polygonsHighRes = sharpPolygons.coordinates.map(([coords]) =>
-    coords.map(([x, y]) => [x + offsetX, y + offsetY] as [number, number])
-  );
-
-  // 4. add spikes to polygons
-  let starShapedPolygons: Array<Array<[number, number]>> | undefined;
-  if (model.outerOffsetRatio > 0) {
-    starShapedPolygons = [];
-    for (const contourComplex of polygonsHighRes) {
-      const center: [number, number] = [
-        (contourComplex[0][0] +
-          contourComplex[Math.floor(contourComplex.length / 2)][0] +
-          contourComplex[contourComplex.length - 1][0]) /
-          3,
-        (contourComplex[0][1] +
-          contourComplex[Math.floor(contourComplex.length / 2)][1] +
-          contourComplex[contourComplex.length - 1][1]) /
-          3,
-      ];
-      const points = polygon2starshape(
-        contourComplex.reverse(), // .reverse(), // reverse because the star shape is drawn ccw
-        model.animationType !== "off" && model.animationParamter === "outerOffsetRatio"
-          ? model.outerOffsetRatio * animationBuilder.t(center)
-          : model.outerOffsetRatio,
-        model.animationType !== "off" && model.animationParamter === "roundness"
-          ? model.roundness * animationBuilder.t(center)
-          : model.roundness,
-        model.wings,
-        model.dissolve
-      );
-
-      if (points.length < 40) {
-        starShapedPolygons.push(points);
-        continue;
-      }
-
-      const scalingFactor = 1e8;
-      const starShapeScaled = simplify(
-        points.map(([x, y]) => ({ x, y })),
-        0.1
-      );
-
-      for (const p of starShapeScaled) {
-        p.x = Math.round(p.x * scalingFactor);
-        p.y = Math.round(p.y * scalingFactor);
-      }
-
-      const starShapesSimplified =
-        clipper
-          ?.simplifyPolygon(starShapeScaled, clipperLib.PolyFillType.NonZero)
-          .filter((polygon) => polygon.length >= 3)
-          .map((polygon) => polygon.map((p) => [p.x / scalingFactor, p.y / scalingFactor] as [number, number]))
-          .map((polygon) =>
-            simplify(
-              polygon.map(([x, y]) => ({ x, y })),
-              0.5
-            ).map(({ x, y }) => [x, y] as [number, number])
-          ) ?? [];
-
-      starShapedPolygons.push(...starShapesSimplified);
-    }
-  }
 
   // 5. UPDATE UNIFORMS
+
   ubo.uniforms.points = Float32Array.from(paddedShapes.flat());
   ubo.update();
 
@@ -506,26 +421,17 @@ const animate = (time: number): void => {
   const meshesContainer = new Container();
   meshesContainer.zIndex = 1;
 
-  if (polygonsHighRes.length > 0) {
+  if (polygonLowRes.length > 0) {
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
 
-    const polygons = starShapedPolygons ?? polygonsHighRes;
+    const polygons = polygonLowRes;
     for (const arr of polygons) {
       const graphics = new Graphics();
       graphics.beginFill(0xff0000, 1);
+      //graphics.drawRect(bb.minX, bb.minY, bbWidth, bbHeight);
       graphics.drawPolygon(arr.flat());
       graphics.filters = [filter];
-
-      if (model.outerOffsetRatio > 0) {
-        const centerAprx = [arr[0], arr[Math.floor(arr.length / 2)], arr[arr.length - 1]].reduce(
-          ([xAcc, yAcc], [x, y]) => [xAcc + x / 3, yAcc + y / 3],
-          [0, 0]
-        );
-        graphics.filters.push(
-          new filters.BlurFilter(animationBuilder.t(centerAprx) * model.alphaFallOutEnd ** 2 * 8, 4, RESOLUTION)
-        );
-      }
 
       graphics.endFill();
       meshesContainer.addChild(graphics);
