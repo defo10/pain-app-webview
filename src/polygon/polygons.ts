@@ -249,3 +249,166 @@ export function polygon2starshape(
   points = [...points, points[0]]; // close polygon
   return points;
 }
+
+function perpendicularVectorAt(polygon: EuclidPolygon, i: number): EuclidPoint {
+  const delta = 0.001;
+  // TODO this marches from the polygon start to point three times for every step -> do it in one go?
+  const pointAhead = polygon.at(i + delta);
+  const pointBehind = polygon.at(i - delta);
+  const tangent = new Line(pointBehind, pointAhead);
+  return tangent.perpendicularVector.unitVector;
+}
+
+/** transforms a polygon to the same polygon shape with wings added to them */
+export function circle2starshape(
+  contour: Array<[number, number]>,
+  outerOffset: number,
+  roundnessRatio: number,
+  wingLength: number
+): {
+  points: Array<[number, number]>;
+  outerPoints: Array<[number, number]>;
+} {
+  const starshape: EuclidPoint[] = [];
+  // outerPoints forms the star shape enclosing polygon, which is used for coloring the star shape
+  const outerPoints: Array<[number, number]> = [];
+  const polygon = new EuclidPolygon(...contour.map(([x, y]) => new EuclidPoint(x, y)));
+  const numWings = Math.floor(polygon.circumference / wingLength);
+  if (numWings < 3)
+    return {
+      points: contour,
+      outerPoints: contour,
+    };
+  const step = 1.0 / numWings;
+  for (let i = 0.0; i < 1.0; i += step) {
+    const midDelta = 0.5 * step;
+    const midPointI = i + midDelta;
+    const innerPoint = polygon.at(i);
+
+    // for terminoloy, consider this strip as a horizontal line with innerPoint being on the line,
+    // and outerPoint being shifted north by outerOffset, i.e. outerPoint is the wing tip
+    // the start (i = 0) is on the right side and goes left/ccw
+    const outerPointBaseline = polygon.at(midPointI);
+    const uvOuterPoint = perpendicularVectorAt(polygon, midPointI);
+    const outerPoint = outerPointBaseline.add(uvOuterPoint.scale(outerOffset));
+    const horizontalDelta: number = lerp(1e-3, midDelta * 0.7, roundnessRatio);
+    // this is the ratio applied to outerOffset to change the heights of the points defining
+    // the left and right side of the wing
+    const verticalOffsetRatio: number = lerp(0.6, 0.8, roundnessRatio);
+
+    const outerPointLeftBaseline = polygon.at(midPointI + horizontalDelta);
+    const uvOuterPointLeft = perpendicularVectorAt(polygon, midPointI + horizontalDelta);
+    const outerPointLeft = outerPointLeftBaseline.add(uvOuterPointLeft.scale(outerOffset * verticalOffsetRatio));
+
+    const outerPointRightBaseline = polygon.at(midPointI - horizontalDelta);
+    const uvOuterPointRight = perpendicularVectorAt(polygon, midPointI - horizontalDelta);
+    const outerPointRight = outerPointRightBaseline.add(uvOuterPointRight.scale(outerOffset * verticalOffsetRatio));
+
+    starshape.push(innerPoint);
+    const maxOffset = 0.5 * outerOffset;
+    // do not add outer points if by they are too far away from the outer point. This happens
+    // when outer point is close to a corner, which distorts outerPointLeft and outerPointRight
+    if (dist([outerPointRight.x, outerPointRight.y], [outerPoint.x, outerPoint.y]) < maxOffset)
+      starshape.push(outerPointRight);
+    starshape.push(outerPoint);
+    if (dist([outerPointLeft.x, outerPointLeft.y], [outerPoint.x, outerPoint.y]) < maxOffset)
+      starshape.push(outerPointLeft);
+
+    const hullPoint = outerPointBaseline.add(uvOuterPoint.scale(outerOffset === 0 ? 2 : outerOffset * 1.2));
+    outerPoints.push([hullPoint.x, hullPoint.y]);
+  }
+  const starShapesFlat = starshape.map(({ x, y }) => [x, y]);
+  const curveInterpolator = new CurveInterpolator(
+    [
+      ...starShapesFlat,
+      lerpPoints(starShapesFlat.at(-1) as [number, number], starShapesFlat[0] as [number, number], 0.9),
+    ],
+    { tension: 0.0 }
+  );
+  let points: Array<[number, number]> = curveInterpolator.getPoints(numWings * 2 * 10);
+  points = [...points, points[0]];
+  return { points, outerPoints };
+}
+
+export function starshape(
+  center: Point,
+  innerRadius: number,
+  outerOffsetRatio: number,
+  roundnessRatio: number,
+  wingLength: number
+): Array<[number, number]> {
+  const starshape: EuclidPoint[] = [];
+  const outerOffset = outerOffsetRatio * innerRadius * 2;
+  const contour = circlePolygon(center, innerRadius + outerOffset);
+  const polygon = new EuclidPolygon(...contour.map(({ x, y }) => new EuclidPoint(x, y)));
+  const numWings = Math.floor(polygon.circumference / wingLength);
+  const step = 1.0 / numWings;
+  const maxRoundness = Math.min(outerOffset, polygon.circumference * step * 0.25);
+  const roundness = Math.max(roundnessRatio * maxRoundness, 0.1);
+  for (let i = 0.0; i < 1.0; i += step) {
+    const outerPoint = polygon.at(i);
+
+    const outerPointPerpendicular = perpendicularVectorAt(polygon, i); // point outwards
+    const scaledOuterPointPerpendicular = outerPointPerpendicular.scale(roundness);
+    const wingCenter = outerPoint.subtract(scaledOuterPointPerpendicular);
+    starshape.push(
+      wingCenter.subtract(scaledOuterPointPerpendicular.rotate(Math.PI / 2)),
+      outerPoint,
+      wingCenter.add(scaledOuterPointPerpendicular.rotate(Math.PI / 2))
+    );
+
+    const midPointI = i + step / 2;
+    const pointAtMidpointI = polygon.at(midPointI);
+    const midpointPerpendicularUV = perpendicularVectorAt(polygon, midPointI);
+    const innerPoint = pointAtMidpointI.subtract(midpointPerpendicularUV.scale(outerOffset));
+    starshape.push(innerPoint);
+  }
+  const curveInterpolator = new CurveInterpolator(
+    starshape.map(({ x, y }) => [x, y]),
+    { tension: 0.0 }
+  );
+  const points = curveInterpolator.getPoints(numWings * 2 * 10);
+  return [...points, points[0]];
+}
+
+export function starshape2(
+  radius: number,
+  outerOffsetRatio: number,
+  roundnessRatio: number,
+  numWings: number
+): Array<[number, number]> {
+  const starshape: [number, number][] = [];
+
+  const step = (2 * Math.PI) / numWings;
+  for (let tipAngle = 0; tipAngle < 2 * Math.PI * 0.99; tipAngle += step) {
+    const nextTipAngle = tipAngle + step;
+    const midAngle = (tipAngle + nextTipAngle) / 2;
+
+    const outerOffset = lerp(radius, radius * 2, outerOffsetRatio);
+    const innerOffset = lerp(radius, radius * 0.05, outerOffsetRatio);
+
+    const roundnessModifierAngleFirst = lerp(tipAngle * 1.001, lerp(tipAngle, midAngle, 0.8), roundnessRatio);
+    const roundnessModifierAngleSecond = lerp(nextTipAngle * 0.999, lerp(nextTipAngle, midAngle, 0.8), roundnessRatio);
+
+    const roundnessModifierOffset = lerp(outerOffset * 0.99, lerp(innerOffset, outerOffset, 0.7), roundnessRatio);
+
+    starshape.push(
+      [Math.cos(tipAngle) * outerOffset, Math.sin(tipAngle) * outerOffset],
+      [
+        Math.cos(roundnessModifierAngleFirst) * roundnessModifierOffset,
+        Math.sin(roundnessModifierAngleFirst) * roundnessModifierOffset,
+      ],
+      [Math.cos(midAngle) * innerOffset, Math.sin(midAngle) * innerOffset],
+      [
+        Math.cos(roundnessModifierAngleSecond) * roundnessModifierOffset,
+        Math.sin(roundnessModifierAngleSecond) * roundnessModifierOffset,
+      ]
+    );
+  }
+
+  const curveInterpolator = new CurveInterpolator([...starshape, [starshape[0][0] * 0.99, starshape[0][1] * 0.99]], {
+    tension: 0.0,
+  });
+  const points = curveInterpolator.getPoints(numWings * 2 * 10);
+  return [...points];
+}

@@ -19,13 +19,16 @@ import {
   PointerEvents,
   InteractionEvent,
   filters,
+  Geometry,
+  DRAW_MODES,
+  Mesh,
 } from "pixi.js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
 import { valueFromSlider, innerColorPicker, checkedRadioBtn, outerColorPicker } from "./ui";
 import { Model } from "./model";
-import { gradientShaderFrom } from "./filters/GradientShader";
-import { polygon2starshape } from "./polygon/polygons";
+import { gradientShaderFrom, starShaderFrom } from "./filters/GradientShader";
+import { polygon2starshape, starshape, starshape2 } from "./polygon/polygons";
 import { Point as EuclidPoint, Polygon as EuclidPolygon } from "@mathigon/euclid";
 import { clamp, dist } from "./polygon/utils";
 import { Position, RandomSpaceFilling } from "./polygon/space_filling";
@@ -41,6 +44,7 @@ import "./components/painshapes";
 import "./components/areapicker";
 import { PainShapes } from "./components/painshapes";
 import { AreaPicker } from "./components/areapicker";
+const lerp = require("interpolation").lerp;
 
 // gl matrix uses float 32 types by default, but array is much faster.
 gl.glMatrix.setMatrixArrayType(Array);
@@ -170,9 +174,9 @@ const updatedModel = (oldModel?: Model): Model => {
   ];
   // update radii
   painShapes.forEach((p) => {
-    const newRadius = items.find(({ id }) => id === p.id)?.radius;
-    if (!newRadius) console.log("Radius not set?");
-    p.radius = newRadius ?? 0;
+    const newPainShape = items.find(({ id }) => id === p.id);
+    if (!newPainShape || p.radius === newPainShape.radius) return;
+    p.radius = newPainShape.radius;
     // position is updated automatically by the drag handler
   });
 
@@ -225,6 +229,16 @@ const shader = gradientShaderFrom({
   amplitude: 0,
   animationParameterFlag: animationParameterToFlag(model.animationParamter),
   motionFnFlag: motionFnToFlag(model.animationType),
+});
+
+const starShader = starShaderFrom({
+  backgroundTexture: null,
+  textureBounds: null,
+  rendererBounds: null,
+  innerColorStart: 0,
+  alphaFallOutEnd: 0,
+  outerColorHSL: [0, 0, 0],
+  innerColorHSL: [0, 0, 0],
 });
 
 const scene = new Container();
@@ -405,7 +419,6 @@ const animate = (time: number): void => {
   const paddedShapes = [...outerShapesDissolved.map(asPaddedVec4), ...starsAnimated.flat(1).map(asPaddedVec4)];
 
   // 5. UPDATE UNIFORMS
-
   ubo.uniforms.points = Float32Array.from(paddedShapes.flat());
   ubo.update();
 
@@ -421,7 +434,78 @@ const animate = (time: number): void => {
   const meshesContainer = new Container();
   meshesContainer.zIndex = 1;
 
-  if (paddedShapes.length > 0) {
+  /** test star shape */
+  // test star shape
+  let animationCoefficient =
+    model.animationType !== "off" && model.animationParamter === "alphaFallOutEnd" && model.painShapes.length > 0
+      ? animationBuilder.t(model.painShapes[0].positionAsVec2)
+      : 1;
+  starShader.uniforms.innerColorStart = model.innerColorStart;
+  starShader.uniforms.alphaFallOutEnd = model.alphaFallOutEnd * animationCoefficient;
+  starShader.uniforms.outerColorHSL = model.outerColorHSL;
+  starShader.uniforms.innerColorHSL = model.innerColorHSL;
+
+  // only show underlying star shapes if overlying polygon was shrunk
+  // otherwise this leads to random flicker of the underlying star shapes
+  // around the edges
+  if (model.outerOffsetRatio > 0) {
+    for (const pos of model.painShapes) {
+      const referenceSize = 10;
+      animationCoefficient =
+        model.animationType !== "off" && model.animationParamter === "outerOffsetRatio"
+          ? animationBuilder.t(pos.positionAsVec2)
+          : 1;
+      const uStar = starshape2(
+        referenceSize,
+        model.outerOffsetRatio * animationCoefficient,
+        model.roundness,
+        model.wings
+      );
+      const polygon = new EuclidPolygon(...uStar.map(([x, y]) => new EuclidPoint(x, y)));
+      const centroid = polygon.centroid;
+      const uGeom = new Geometry()
+        .addAttribute("aVertexPosition", [centroid.x, centroid.y, ...uStar.flat()], 2)
+        .addAttribute("aDistance", [1.0, ...uStar.flat().map((_) => 0)], 1);
+      const geometry = uGeom;
+      const mesh = new Mesh(geometry, starShader, undefined, DRAW_MODES.TRIANGLE_FAN);
+
+      const renderTexture = renderer.generateTexture(mesh, {
+        resolution: RESOLUTION * 10, // upscale to simulate anti-aliasing
+      });
+
+      const sprite = new Sprite(renderTexture);
+      sprite.anchor.set(0.5);
+      sprite.position.set(...pos.positionAsVec2);
+      animationCoefficient =
+        model.animationType !== "off" &&
+        (model.animationParamter === "radius" || model.animationParamter === "dissolve")
+          ? animationBuilder.t(pos.positionAsVec2)
+          : 1;
+      sprite.scale.set(lerp(pos.radius / referenceSize, 1, model.dissolve) * animationCoefficient);
+      meshesContainer.addChild(sprite);
+
+      if (model.dissolve > 0) {
+        for (const offspring of pos.offsprings) {
+          const offspringSprite = new Sprite(renderTexture);
+          offspringSprite.anchor.set(0.5);
+          const x = Math.cos(offspring.angle) * offspring.offset;
+          const y = Math.sin(offspring.angle) * offspring.offset;
+          offspringSprite.position.set(pos.position.x + x, pos.position.y + y);
+
+          animationCoefficient =
+            model.animationType !== "off" && model.animationParamter === "dissolve"
+              ? 1 / animationBuilder.t(pos.positionAsVec2)
+              : 1;
+
+          offspringSprite.scale.set(lerp(0, offspring.radius / referenceSize, model.dissolve * animationCoefficient));
+          meshesContainer.addChild(offspringSprite);
+        }
+      }
+    }
+  }
+  /** end test */
+
+  if (paddedShapes.length > 0 && model.outerOffsetRatio == 0) {
     const filter = gradientShaderFrom(shader.uniforms);
     filter.resolution = RESOLUTION;
 
