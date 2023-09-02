@@ -37,7 +37,7 @@ export class PainShape {
     for (let counter = 0; counter < maxOffsetsSize; counter++) {
       const angle = Math.random() * Math.PI * 2;
       const offset = Math.random() * this.radius * 1.3;
-      const radius = 3 + Math.ceil(Math.random() * 7);
+      const radius = 3 + Math.floor(Math.random() * 4);
       offsprings.push({ angle, offset, radius });
     }
 

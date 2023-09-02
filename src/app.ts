@@ -22,6 +22,7 @@ import {
   Geometry,
   DRAW_MODES,
   Mesh,
+  Renderer,
 } from "pixi.js";
 import "@pixi/math-extras";
 import { Assets } from "@pixi/assets";
@@ -44,6 +45,7 @@ import "./components/painshapes";
 import "./components/areapicker";
 import { PainShapes } from "./components/painshapes";
 import { AreaPicker } from "./components/areapicker";
+import gifshot from "gifshot";
 const lerp = require("interpolation").lerp;
 
 // gl matrix uses float 32 types by default, but array is much faster.
@@ -59,10 +61,10 @@ settings.PRECISION_VERTEX = PRECISION.MEDIUM;
 settings.TARGET_FPMS = 1 / (30 * 1000);
 settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = true;
 
-const canvas: HTMLElement | null = document.getElementById("circleContentContainer");
-if (!canvas) throw new Error("no canvas!");
-const canvasWidth = canvas.clientWidth * DOWNSCALE_FACTOR;
-const canvasHeight = canvas.clientHeight * DOWNSCALE_FACTOR;
+const canvasContainer: HTMLElement | null = document.getElementById("circleContentContainer");
+if (!canvasContainer) throw new Error("no canvas!");
+const canvasWidth = canvasContainer.clientWidth * DOWNSCALE_FACTOR;
+const canvasHeight = canvasContainer.clientHeight * DOWNSCALE_FACTOR;
 
 const renderer = autoDetectRenderer({
   view: document.getElementById("animations-canvas") as HTMLCanvasElement,
@@ -73,7 +75,7 @@ const renderer = autoDetectRenderer({
   autoDensity: true,
   width: canvasWidth,
   height: canvasHeight,
-});
+}) as Renderer;
 
 let ticker: Ticker | undefined;
 // async inits
@@ -245,24 +247,6 @@ const scene = new Container();
 let staleMeshes: Container;
 let stars: Position[][] = [];
 let clipper: clipperLib.ClipperLibWrapper | undefined;
-
-/* @ts-expect-error because incompatible types. The null buffer is used internally for its types, such that that shader can be compiled already. */
-const nullBuffer = new Buffer({
-  alloc: 4,
-  type: UINT8,
-  width: 2,
-  height: 2,
-});
-
-const kernel = new Kernel(
-  {
-    output: { outputDistance: nullBuffer },
-  },
-  KernelSource
-);
-window.onunload = function () {
-  kernel.delete();
-};
 
 const init = async (assetLocation: string): Promise<void> => {
   const [clipperResolved, assetsResolved]: [clipperLib.ClipperLibWrapper, { [key: string]: Texture }] =
@@ -576,6 +560,78 @@ const animate = (time: number): void => {
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 init("leer");
+
+async function exportVid(blob: Blob) {
+  const vid = document.createElement("video");
+  vid.src = URL.createObjectURL(blob);
+  vid.controls = true;
+  vid.autoplay = true;
+  vid.loop = true;
+  vid.setAttribute("style", "position: absolute; top: 100px;");
+  document.body.appendChild(vid);
+
+  const a = document.createElement("a");
+  a.setAttribute("style", "background-color: red; position: absolute; top: 200px;");
+  a.download = "my-pain.mp4";
+  a.href = vid.src;
+  a.textContent = "download the video";
+  document.body.appendChild(a);
+}
+
+async function exportGif(blob: Blob) {
+  const fpsInterval = 1 / 30;
+  const timeForOneLoop = 1 / model.frequencyHz;
+  const numFrames = Math.floor(timeForOneLoop / fpsInterval / 2) + 1;
+  // The amount of time (10 = 1s) to stay on each frame
+  const frameDuration = fpsInterval * 10;
+
+  gifshot.createGIF(
+    {
+      video: [blob],
+      gifWidth: Math.floor(renderer.view.width),
+      gifHeight: Math.floor(renderer.view.height),
+      interval: fpsInterval,
+      numFrames,
+      frameDuration,
+      sampleInterval: 5,
+      numWorkers: 8,
+    },
+    function (obj: any) {
+      if (!obj.error) {
+        const image = obj.image,
+          animatedImage = document.createElement("img");
+        animatedImage.src = image;
+        animatedImage.setAttribute("style", "position: absolute; top: 200px;");
+        document.body.appendChild(animatedImage);
+      }
+    }
+  );
+}
+
+document.getElementById("record-gif")?.addEventListener("click", (e) => record("gif"));
+document.getElementById("record-video")?.addEventListener("click", (e) => record("video"));
+
+const chunks: Blob[] = [];
+let rec: MediaRecorder | undefined;
+function record(type: "gif" | "video") {
+  const stream = renderer.view.captureStream(); // grab our canvas MediaStream
+  rec = new MediaRecorder(stream); // init the recorder
+  // every time the recorder has new data, we will store it in our array
+  rec.ondataavailable = (e) => chunks.push(e.data);
+  // only when the recorder stops, we construct a complete Blob from all the chunks
+  if (type == "video") {
+    rec.onstop = () =>
+      exportVid(new Blob(chunks, { type: MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "video/mp4" }));
+  } else {
+    rec.onstop = () =>
+      exportGif(new Blob(chunks, { type: MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "video/mp4" }));
+  }
+
+  rec.start();
+  setTimeout(() => {
+    if (rec) rec.stop();
+  }, 1000 / model.frequencyHz);
+}
 
 const areaPicker = document.querySelector("area-picker") as AreaPicker;
 areaPicker?.addEventListener("area-chosen", (e) => {
